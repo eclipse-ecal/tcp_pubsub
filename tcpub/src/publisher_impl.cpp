@@ -49,7 +49,6 @@ namespace tcpub
   
   bool Publisher_Impl::start(const std::string& address, uint16_t port)
   {
-    // TODO: Return false if already running
 #if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose, "Publisher: Parsing address " + address + ":" + std::to_string(port) + ".");
 #endif
@@ -327,6 +326,11 @@ namespace tcpub
   {
     std::lock_guard<std::mutex> publisher_sessions_lock(publisher_sessions_mutex_);
     return publisher_sessions_.size();
+  }
+
+  bool Publisher_Impl::isRunning() const
+  {
+    return is_running_;
   }
 
   std::string Publisher_Impl::toString(const asio::ip::tcp::endpoint& endpoint) const

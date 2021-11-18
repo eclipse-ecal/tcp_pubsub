@@ -9,7 +9,9 @@ namespace tcpub
 {
   enum class MessageContentType : uint8_t
   {
-    RegularPayload = 0
+    RegularPayload    = 0, // The Content is a user-defined payload that shall be given to the user code
+    ProtocolHandshake = 1, // The contnet is a handshake message that defines which protocol version shall be used
+
     // This is meant for future use. At the moment, received messages that don't
     // have the type set to "RegularPayload" are discarded. So in the future,
     // e.g. when we decide to send meta information or anything else over the 

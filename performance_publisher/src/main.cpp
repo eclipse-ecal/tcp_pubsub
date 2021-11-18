@@ -51,7 +51,6 @@ int main() {
         std::this_thread::sleep_for(time_to_sleep);
       }
     }
-
     {
       auto now  = std::chrono::steady_clock::now();
 
