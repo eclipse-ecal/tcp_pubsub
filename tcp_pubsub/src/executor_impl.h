@@ -11,9 +11,9 @@
 
 #include <asio.hpp>
 
-#include "tcpub_logger_abstraction.h"
+#include "tcp_pubsub_logger_abstraction.h"
 
-namespace tcpub
+namespace tcp_pubsub
 {
   class Executor_Impl : public std::enable_shared_from_this<Executor_Impl>
   {

@@ -5,7 +5,7 @@
 
 #include <stdint.h>
 
-namespace tcpub
+namespace tcp_pubsub
 {
 #pragma pack(push,1)
   // This message shall always contain little endian numbers.

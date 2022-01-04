@@ -11,11 +11,11 @@
 #include <asio.hpp>
 #include <recycle/shared_pool.hpp>
 
-#include <tcpub/executor.h>
-#include "tcpub_logger_abstraction.h"
+#include <tcp_pubsub/executor.h>
+#include "tcp_pubsub_logger_abstraction.h"
 #include "publisher_session.h"
 
-namespace tcpub
+namespace tcp_pubsub
 {
   class Publisher_Impl : public std::enable_shared_from_this<Publisher_Impl>
   {

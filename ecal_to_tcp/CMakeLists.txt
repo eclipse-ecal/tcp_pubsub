@@ -5,7 +5,7 @@ project(ecal_to_tcp)
 
 set(CMAKE_CXX_STANDARD 14)
 
-find_package(tcpub REQUIRED CONFIG)
+find_package(tcp_pubsub REQUIRED CONFIG)
 find_package(eCAL REQUIRED)
 
 set(sources
@@ -17,6 +17,6 @@ add_executable (${PROJECT_NAME}
 )
 
 target_link_libraries (${PROJECT_NAME}
-    tcpub::tcpub
+    tcp_pubsub::tcp_pubsub
     eCAL::core
 )

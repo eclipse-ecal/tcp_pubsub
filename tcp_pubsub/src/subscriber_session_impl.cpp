@@ -7,7 +7,7 @@
 
 #include "protocol_handshake_message.h"
 
-namespace tcpub
+namespace tcp_pubsub
 {
   //////////////////////////////////////////////
   /// Constructor & Destructor
@@ -19,7 +19,7 @@ namespace tcpub
                                                 , int                                                                 max_reconnection_attempts
                                                 , const std::function<std::shared_ptr<std::vector<char>>()>&          get_buffer_handler
                                                 , const std::function<void(const std::shared_ptr<SubscriberSession_Impl>&)>& session_closed_handler
-                                                , const tcpub::logger::logger_t&                                      log_function)
+                                                , const tcp_pubsub::logger::logger_t&                                      log_function)
     : address_                (address)
     , port_                   (port)
     , resolver_               (*io_service)
@@ -37,7 +37,7 @@ namespace tcpub
   // Destructor
   SubscriberSession_Impl::~SubscriberSession_Impl()
   {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     std::stringstream ss;
     ss << std::this_thread::get_id();
     std::string thread_id = ss.str();
@@ -46,7 +46,7 @@ namespace tcpub
 
     cancel();
 
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "SubscriberSession " + endpointToString() + ": Deleted.");
 #endif
   }
@@ -110,7 +110,7 @@ namespace tcpub
 
     endpoint_ = endpoint_to_connect_to;
 
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "SubscriberSession " + endpointToString() + ": Trigger async connect to endpoint.");
 #endif // 
 
@@ -125,11 +125,11 @@ namespace tcpub
                                 }
                                 else
                                 {
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
                                   me->log_(logger::LogLevel::Debug, "SubscriberSession " + me->endpointToString() + ": Successfully connected to publisher " + me->endpointToString());
 #endif
 
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
                                   me->log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + me->endpointToString() + ": Setting tcp::no_delay option.");
 #endif
                                   // Disable Nagle's algorithm. Nagles Algorithm will otherwise cause the
@@ -157,7 +157,7 @@ namespace tcpub
       return;
     }
 
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug,  "SubscriberSession " + endpointToString() + ": Sending ProtocolHandshakeRequest.");
 #endif
 
@@ -202,7 +202,7 @@ namespace tcpub
       if (retries_left_ > 0)
         retries_left_--;
 
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
       log_(logger::LogLevel::Debug, "SubscriberSession " + endpointToString() + ": Waiting and retrying to connect");
 #endif
 
@@ -236,7 +236,7 @@ namespace tcpub
       return;
     }
 
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose,  "SubscriberSession " + endpointToString() + ": Waiting for data...");
 #endif
 
@@ -289,7 +289,7 @@ namespace tcpub
                                             me->connectionFailedHandler();;
                                             return;
                                           }
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
                                           me->log_(logger::LogLevel::DebugVerbose,  "SubscriberSession " + me->endpointToString()
                                             + ": Received header content: "
                                             + "data_size: "       + std::to_string(le64toh(header->data_size)));
@@ -317,7 +317,7 @@ namespace tcpub
     std::vector<char> data_to_discard;
     data_to_discard.resize(bytes_to_discard);
 
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose,  "SubscriberSession " + endpointToString() + ": Discarding " + std::to_string(bytes_to_discard) + " bytes after the header.");
 #endif
 
@@ -346,7 +346,7 @@ namespace tcpub
 
     if (header->data_size == 0)
     {
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
         log_(logger::LogLevel::Debug,  "SubscriberSession " + endpointToString() + ": Received data size of 0.");
 #endif
       readHeaderLength();
@@ -385,7 +385,7 @@ namespace tcpub
                                         ProtocolHandshakeMessage handshake_message;
                                         size_t bytes_to_copy = std::min(data_buffer->size(), sizeof(ProtocolHandshakeMessage));
                                         std::memcpy(&handshake_message, data_buffer->data(), bytes_to_copy);
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
                                         me->log_(logger::LogLevel::Debug,  "SubscriberSession " + me->endpointToString() + ": Received Handshake message. Using Protocol version v" + std::to_string(handshake_message.protocol_version));
 #endif
                                         if (handshake_message.protocol_version > 0)
@@ -397,7 +397,7 @@ namespace tcpub
                                       }
                                       else if (header->type == MessageContentType::RegularPayload)
                                       {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
                                         me->log_(logger::LogLevel::DebugVerbose,  "SubscriberSession " + me->endpointToString() + ": Received message of type \"RegularPayload\"");
 #endif
                                         // Call the callback first, ...
@@ -414,7 +414,7 @@ namespace tcpub
                                       }
                                       else
                                       {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
                                         me->log_(logger::LogLevel::DebugVerbose,  "SubscriberSession " + me->endpointToString() + ": Received message has unknow type: " + std::to_string(static_cast<int>(header->type)));
 #endif
                                       }
@@ -461,14 +461,14 @@ namespace tcpub
 
     if (already_canceled) return;
 
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "SubscriberSession " + endpointToString() + ": Cancelling...");
 #endif
     
     {
       asio::error_code ec;
       data_socket_.close(ec);
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       if (ec)
         log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Failed closing socket: " + ec.message());
       else
@@ -479,7 +479,7 @@ namespace tcpub
     {
       asio::error_code ec;
       data_socket_.cancel(ec); // Even if ec indicates an error, the socket is closed now (according to the documentation)
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       if (ec)
         log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Failed cancelling socket: " + ec.message());
       else
@@ -490,7 +490,7 @@ namespace tcpub
     {
       asio::error_code ec;
       retry_timer_.cancel(ec);
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       if (ec)
         log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Failed canceling retry timer: " + ec.message());
       else
@@ -499,7 +499,7 @@ namespace tcpub
     }
 
     resolver_.cancel();
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Successfully canceled resovler.");
 #endif
   }

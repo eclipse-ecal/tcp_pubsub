@@ -8,7 +8,9 @@
 #include <memory>
 #include <stdint.h>
 
-namespace tcpub
+#include "tcp_pubsub_version.h"
+
+namespace tcp_pubsub
 {
   struct CallbackData
   {

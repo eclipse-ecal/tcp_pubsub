@@ -7,8 +7,8 @@
 #include <thread>
 #include <vector>
 
-#include <tcpub/executor.h>
-#include <tcpub/publisher.h>
+#include <tcp_pubsub/executor.h>
+#include <tcp_pubsub/publisher.h>
 
 std::atomic<int> messages_sent;
 
@@ -23,9 +23,9 @@ void printLog()
 }
 
 int main() {
-  std::shared_ptr<tcpub::Executor> executor = std::make_shared<tcpub::Executor>(6, tcpub::logger::logger_no_verbose_debug);
+  std::shared_ptr<tcp_pubsub::Executor> executor = std::make_shared<tcp_pubsub::Executor>(6, tcp_pubsub::logger::logger_no_verbose_debug);
 
-  tcpub::Publisher publisher(executor, "0.0.0.0", 1588);
+  tcp_pubsub::Publisher publisher(executor, "0.0.0.0", 1588);
 
   std::thread print_thread(printLog);
 

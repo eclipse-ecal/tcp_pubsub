@@ -10,7 +10,7 @@
 
 #include "protocol_handshake_message.h"
 
-namespace tcpub
+namespace tcp_pubsub
 {
   //////////////////////////////////////////////
   /// Constructor & Destructor
@@ -18,7 +18,7 @@ namespace tcpub
   
   PublisherSession::PublisherSession(const std::shared_ptr<asio::io_service>&                               io_service
                                      , const std::function<void(const std::shared_ptr<PublisherSession>&)>& session_closed_handler
-                                     , const tcpub::logger::logger_t&                                  log_function)
+                                     , const tcp_pubsub::logger::logger_t&                                  log_function)
     : io_service_             (io_service)
     , state_                  (State::NotStarted)
     , session_closed_handler_ (session_closed_handler)
@@ -27,21 +27,21 @@ namespace tcpub
     , data_strand_            (*io_service_)
     , sending_in_progress_    (false)
   {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose, "PublisherSession " + endpointToString() + ": Created.");
 #endif
   }
 
   PublisherSession::~PublisherSession()
   {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     std::stringstream ss;
     ss << std::this_thread::get_id();
     std::string thread_id = ss.str();
     log_(logger::LogLevel::DebugVerbose, "PublisherSession " + endpointToString() + ": Deleting from thread " + thread_id + "...");
 #endif
 
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "PublisherSession " + endpointToString() + ": Deleted.");
 #endif
   }
@@ -52,7 +52,7 @@ namespace tcpub
   
   void PublisherSession::start()
   {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose, "PublisherSession " + endpointToString() + ": Setting tcp::no_delay option.");
 #endif
     // Disable Nagle's algorithm. Nagles Algorithm will otherwise cause the
@@ -84,7 +84,7 @@ namespace tcpub
     if (previous_state == State::Canceled)
       return;
 
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "PublisherSession " + endpointToString() + ": Closing session.");
 #endif
 
@@ -109,7 +109,7 @@ namespace tcpub
     if (state_ == State::Canceled)
       return;
 
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose,  "PublisherSession " + endpointToString() + ": Waiting for data...");
 #endif
 
@@ -159,7 +159,7 @@ namespace tcpub
                                       me->sessionClosedHandler();;
                                       return;
                                     }
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
                                     me->log_(logger::LogLevel::DebugVerbose
                                           ,  "PublisherSession " + me->endpointToString()
                                             + ": Received header content: "
@@ -186,7 +186,7 @@ namespace tcpub
     std::vector<char> data_to_discard;
     data_to_discard.resize(bytes_to_discard);
 
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose,  "PublisherSession " + endpointToString() + ": Discarding " + std::to_string(bytes_to_discard) + " bytes after the header.");
 #endif
 
@@ -212,7 +212,7 @@ namespace tcpub
 
     if (header->data_size == 0)
     {
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
       log_(logger::LogLevel::Debug,  "PublisherSession " + endpointToString() + ": Received data size of 0.");
 #endif
       sessionClosedHandler();
@@ -241,7 +241,7 @@ namespace tcpub
                                       ProtocolHandshakeMessage handshake_message;
                                       size_t bytes_to_copy = std::min(data_buffer->size(), sizeof(ProtocolHandshakeMessage));
                                       std::memcpy(&handshake_message, data_buffer->data(), bytes_to_copy);
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
                                       me->log_(logger::LogLevel::Debug,  "PublisherSession " + me->endpointToString() + ": Received Handshake message. Maximum supported protocol version from subsriber: v" + std::to_string(handshake_message.protocol_version));
 #endif
                                       me->sendProtocolHandshakeResponse();
@@ -259,7 +259,7 @@ namespace tcpub
     if (state_ == State::Canceled)
       return;
 
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug,  "PublisherSession " + endpointToString() + ": Sending ProtocolHandshakeResponse.");
 #endif
 
@@ -291,7 +291,7 @@ namespace tcpub
     if (state_ == State::Canceled)
       return;
 
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     std::stringstream buffer_pointer_ss;
     buffer_pointer_ss << "0x" << std::hex << buffer.get();
     const std::string buffer_pointer_string = buffer_pointer_ss.str();
@@ -303,7 +303,7 @@ namespace tcpub
       if ((state_ == State::Running) &&  !sending_in_progress_)
       {
         // If we are not sending a buffer at the moment, we can directly trigger sending the given buffer
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
         log_(logger::LogLevel::DebugVerbose, "PublisherSession " + endpointToString() + ": Trigger sending buffer " + buffer_pointer_string + ".");
 #endif
         sending_in_progress_ = true;
@@ -311,7 +311,7 @@ namespace tcpub
       }
       else
       {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
         log_(logger::LogLevel::DebugVerbose, "PublisherSession " + endpointToString() + ": Saved buffer " + buffer_pointer_string + " as next buffer.");
 #endif
         // Store the new buffer as next buffer
@@ -330,7 +330,7 @@ namespace tcpub
                 , data_strand_.wrap(
                   [me = shared_from_this(), buffer](asio::error_code ec, std::size_t /*bytes_to_transfer*/)
                   {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
                     std::stringstream buffer_pointer_ss;
                     buffer_pointer_ss << "0x" << std::hex << buffer.get();
                     const std::string buffer_pointer_string = buffer_pointer_ss.str();
@@ -350,7 +350,7 @@ namespace tcpub
 
                       if (me->next_buffer_to_send_)
                       {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
                         me->log_(logger::LogLevel::DebugVerbose, "PublisherSession " + me->endpointToString() + ": Successfully sent buffer " + buffer_pointer_string + ". Next buffer is available, trigger sending it.");
 #endif
                         // We have a next buffer!
@@ -368,7 +368,7 @@ namespace tcpub
                       }
                       else
                       {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
                         me->log_(logger::LogLevel::DebugVerbose, "PublisherSession " + me->endpointToString() + ": Successfully sent buffer " + buffer_pointer_string + ". No next buffer available.");
 #endif
                         me->sending_in_progress_ = false;

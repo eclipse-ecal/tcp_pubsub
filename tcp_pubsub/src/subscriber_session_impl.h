@@ -10,10 +10,10 @@
 
 #include <asio.hpp>
 
-#include "tcpub_logger_abstraction.h"
+#include "tcp_pubsub_logger_abstraction.h"
 #include "tcp_header.h"
 
-namespace tcpub
+namespace tcp_pubsub
 {
   class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSession_Impl>
   {
@@ -27,7 +27,7 @@ namespace tcpub
                           , int                                                                 max_reconnection_attempts
                           , const std::function<std::shared_ptr<std::vector<char>>()>&          get_buffer_handler
                           , const std::function<void(const std::shared_ptr<SubscriberSession_Impl>&)>& session_closed_handler
-                          , const tcpub::logger::logger_t&                                     log_function);
+                          , const tcp_pubsub::logger::logger_t&                                     log_function);
 
 
     // Copy
@@ -106,6 +106,6 @@ namespace tcpub
     std::function<void(const std::shared_ptr<std::vector<char>>&, const std::shared_ptr<TcpHeader>&)> synchronous_callback_;       /// [PROTECTED BY data_strand_!] Callback that is called when a complete message has been received. Executed in the asio constext, so this must be cheap!
 
     // Logger
-    const tcpub::logger::logger_t log_;
+    const tcp_pubsub::logger::logger_t log_;
   };
 }

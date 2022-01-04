@@ -12,12 +12,15 @@
 
 #include "executor.h"
 
-namespace tcpub
+#include "tcp_pubsub_version.h"
+#include "tcp_pubsub_export.h"
+
+namespace tcp_pubsub
 {
   class Publisher_Impl;
 
   /**
-   * @brief The Publisher side of tcpub
+   * @brief The Publisher side of tcp_pubsub
    *
    * Once created, a Publisher waits for connections on a port. You can either
    * choose a port to listen on or let that decision to the operating system.
@@ -68,7 +71,7 @@ namespace tcpub
      *              the operating system will usually autoamtically chooose a
      *              free port.
      */
-    Publisher(const std::shared_ptr<Executor>& executor, const std::string& address, uint16_t port);
+    TCP_PUBSUB_EXPORT Publisher(const std::shared_ptr<Executor>& executor, const std::string& address, uint16_t port);
 
     /**
      * @brief Creates a new publisher
@@ -96,18 +99,18 @@ namespace tcpub
      *              parameter, the operating system will usually autoamtically
      *              chooose a free port.
      */
-    Publisher(const std::shared_ptr<Executor>& executor, uint16_t port = 0);
+    TCP_PUBSUB_EXPORT Publisher(const std::shared_ptr<Executor>& executor, uint16_t port = 0);
 
     // Copy
-    Publisher(const Publisher&)            = default;
-    Publisher& operator=(const Publisher&) = default;
+    TCP_PUBSUB_EXPORT Publisher(const Publisher&)            = default;
+    TCP_PUBSUB_EXPORT Publisher& operator=(const Publisher&) = default;
 
     // Move
-    Publisher& operator=(Publisher&&)      = default;
-    Publisher(Publisher&&)                 = default;
+    TCP_PUBSUB_EXPORT Publisher& operator=(Publisher&&)      = default;
+    TCP_PUBSUB_EXPORT Publisher(Publisher&&)                 = default;
 
     // Destructor
-    ~Publisher();
+    TCP_PUBSUB_EXPORT ~Publisher();
 
   public:
     /**
@@ -123,7 +126,7 @@ namespace tcpub
      * 
      * @return The port of this publisher
      */
-    uint16_t           getPort()            const;
+    TCP_PUBSUB_EXPORT uint16_t           getPort()            const;
 
     /**
      * @brief Get the amount of subscriptions to this publisher
@@ -132,7 +135,7 @@ namespace tcpub
      * 
      * @return The number of active subscribers
      */
-    size_t             getSubscriberCount() const;
+    TCP_PUBSUB_EXPORT size_t             getSubscriberCount() const;
 
     /**
      * @brief Check whether the publisher is running
@@ -146,7 +149,7 @@ namespace tcpub
      * 
      * @return Whether the publisher is running
      */
-    bool isRunning()                        const;
+    TCP_PUBSUB_EXPORT bool isRunning()                        const;
 
     /**
      * @brief Send data to all subscribers
@@ -171,7 +174,7 @@ namespace tcpub
      * 
      * @return Whether sending has been successfull (i.e. the publisher is running)
      */
-    bool send(const char* const data, size_t size) const;
+    TCP_PUBSUB_EXPORT bool send(const char* const data, size_t size) const;
 
     /**
      * @brief Send data to all subscribers
@@ -208,7 +211,7 @@ namespace tcpub
      * 
      *   - 1 Element is kept in queue as next element. It will be sent once the
      *     current element has been processed. If you call send too fast, this
-     *     buffer will be dropped. tcpub will always assume that the last
+     *     buffer will be dropped. tcp_pubsub will always assume that the last
      *     element is the only important one.
      * 
      * If there are no active subscriptions, this function returns immediatelly
@@ -222,7 +225,7 @@ namespace tcpub
      * 
      * @return True if sending was successfull (i.e. the publisher is running)
      */
-    bool send(const std::vector<std::pair<const char* const, const size_t>>& buffers) const;
+    TCP_PUBSUB_EXPORT bool send(const std::vector<std::pair<const char* const, const size_t>>& buffers) const;
 
     /**
      * @brief Close all connections
@@ -233,7 +236,7 @@ namespace tcpub
      * It is *not* required to call this before destroying the publisher object.
      * It is done automatically in the destructor.
      */
-    void cancel();
+    TCP_PUBSUB_EXPORT void cancel();
 
   private:
     std::shared_ptr<Publisher_Impl> publisher_impl_;

@@ -12,13 +12,13 @@
 #include <asio.hpp>
 #include <recycle/shared_pool.hpp>
 
-#include <tcpub/executor.h>
-#include <tcpub/subscriber_session.h>
-#include <tcpub/callback_data.h>
+#include <tcp_pubsub/executor.h>
+#include <tcp_pubsub/subscriber_session.h>
+#include <tcp_pubsub/callback_data.h>
 
-#include "tcpub_logger_abstraction.h"
+#include "tcp_pubsub_logger_abstraction.h"
 
-namespace tcpub
+namespace tcp_pubsub
 {
   class Subscriber_Impl : public std::enable_shared_from_this<Subscriber_Impl>
   {
@@ -88,6 +88,6 @@ namespace tcpub
     recycle::shared_pool<std::vector<char>, buffer_pool_lock_policy_> buffer_pool_;                 /// Buffer pool that let's us reuse memory chunks
 
     // Log function
-    const tcpub::logger::logger_t log_;
+    const tcp_pubsub::logger::logger_t log_;
   };
 }

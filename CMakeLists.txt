@@ -8,10 +8,9 @@ message(STATUS "Prefix Path: ${CMAKE_PREFIX_PATH}")
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-project(tcpub)
+project(tcp_pubsub)
 
-set(as_subproject tcpub)
-include(sourcetree.cmake)
+set(as_subproject tcp_pubsub)
 
 string(COMPARE EQUAL "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}" _cmp)
 if (_cmp)
@@ -22,7 +21,7 @@ if (_cmp)
   endmacro()
 endif()
 
-add_subdirectory(tcpub)
+add_subdirectory(tcp_pubsub)
 
 add_subdirectory(thirdparty/recycle EXCLUDE_FROM_ALL)
 

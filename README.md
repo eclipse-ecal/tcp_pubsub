@@ -1,9 +1,9 @@
 
-# tcpub - TCP Publish/Subscribe library
+# tcp_pubsub - TCP Publish/Subscribe library
 
-tcpub is a minimal publish-subscribe library that transports data via TCP. The project is CMake based. The dependencies are integrated as git submodules. In your own Project you can either use those submodules, or provide the dependencies in your own manner.
+tcp_pubsub is a minimal publish-subscribe library that transports data via TCP. The project is CMake based. The dependencies are integrated as git submodules. In your own Project you can either use those submodules as well, or provide the dependencies in your own manner.
 
-tcpub does not define a message format but only transports binary blobs. It does however define a protocol around that, which is kept as lightweight as possible.
+tcp_pubsub does not define a message format but only transports binary blobs. It does however define a protocol around that, which is kept as lightweight as possible.
 
 Dependencies:
 
@@ -19,8 +19,8 @@ A very similar Example is also provided in the repository.
 ```cpp
 #include <thread>
 
-#include <tcpub/executor.h>
-#include <tcpub/publisher.h>
+#include <tcp_pubsub/executor.h>
+#include <tcp_pubsub/publisher.h>
 
 int main()
 {
@@ -29,10 +29,10 @@ int main()
   
   // Create an Executor with a thread-pool size of 6. If you create multiple
   // publishers and subscribers, they all should share the same Executor.
-  std::shared_ptr<tcpub::Executor> executor = std::make_shared<tcpub::Executor>(6);
+  std::shared_ptr<tcp_pubsub::Executor> executor = std::make_shared<tcp_pubsub::Executor>(6);
   
   // Create a publisher that will offer the data on port 1588
-  tcpub::Publisher hello_world_publisher(executor, 1588);
+  tcp_pubsub::Publisher hello_world_publisher(executor, 1588);
 
   for (;;)
   {
@@ -53,17 +53,17 @@ int main()
 #include <iostream>
 #include <thread>
 
-#include <tcpub/executor.h>
-#include <tcpub/subscriber.h>
+#include <tcp_pubsub/executor.h>
+#include <tcp_pubsub/subscriber.h>
 
 int main()
 {
   // Create an Executor with a thread-pool size of 6. If you create multiple
   // publishers and subscribers, they all should share the same Executor.
-  std::shared_ptr<tcpub::Executor> executor = std::make_shared<tcpub::Executor>(6);
+  std::shared_ptr<tcp_pubsub::Executor> executor = std::make_shared<tcp_pubsub::Executor>(6);
 
   // Create a subscriber
-  tcpub::Subscriber hello_world_subscriber(executor);
+  tcp_pubsub::Subscriber hello_world_subscriber(executor);
   
   // Add a session to the subscriber that connects to port 1588 on localhost. A 
   // subscriber will aggregate traffic from multiple source, if you add multiple
@@ -73,8 +73,8 @@ int main()
   // Create a Callback that will be called each time a data packet is received.
   // This function will create an std::string from the packet and print it to
   // the console.
-  std::function<void(const tcpub::CallbackData& callback_data)> callback_function
-        = [](const tcpub::CallbackData& callback_data) -> void
+  std::function<void(const tcp_pubsub::CallbackData& callback_data)> callback_function
+        = [](const tcp_pubsub::CallbackData& callback_data) -> void
           {
             std::cout << "Received playload: "
                       << std::string(callback_data.buffer_->data(), callback_data.buffer_->size())
@@ -98,8 +98,8 @@ There are several examples provided that aim to show you the functionality.
 
 2. Checkout this repo and the asio submodule
 	```console
-	git clone https://github.com/continental/tcpub.git
-	cd tcpub
+	git clone https://github.com/continental/tcp_pubsub.git
+	cd tcp_pubsub
 	git submodule init
 	git submodule update
 	```
@@ -113,7 +113,7 @@ There are several examples provided that aim to show you the functionality.
 
 4. Build the project
 	- Linux: `make`
-	- Windows: Open `_build\fineftp.sln` with Visual Studio and build the example project
+	- Windows: Open `_build\tcp_pubsub.sln` with Visual Studio and build one of the example projects
 
 5. Start either of the example pairs on the same machine.
 	- `hello_world_publisher /.exe` + `hello_world_subscriber /.exe`
@@ -158,7 +158,7 @@ The protocol uses the following message layout. Values that are not sent by the 
 
 - **General Message header**
 	Each message will have a message header as follows. Values are to be interpreted little-endian.
-	This header is defined in [tcpub/src/tcp_header.h](tcpub/src/tcp_header.h)
+	This header is defined in [tcp_pubsub/src/tcp_header.h](tcp_pubsub/src/tcp_header.h)
 
 	- 16 bit: Header size
 	- 8 bit: Type
@@ -170,7 +170,7 @@ The protocol uses the following message layout. Values that are not sent by the 
 
 2. **ProtocolHandshakeReq & ProtocolHandshakeResp**
 	The layout of ProtocolHandshakeReq / ProtocolHandshakeResp is the same.  Values are to be interpreted little-endian
-	This message is defined in [tcpub/src/protocol_handshake_message.h](tcpub/src/protocol_handshake_message.h)
+	This message is defined in [tcp_pubsub/src/protocol_handshake_message.h](tcp_pubsub/src/protocol_handshake_message.h)
 	
 	- Message Header (size given in the first 16 bit)
 	- 8 bit: Protocol Version

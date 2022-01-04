@@ -7,8 +7,8 @@
 #include <thread>
 #include <map>
 
-#include <tcpub/executor.h>
-#include <tcpub/publisher.h>
+#include <tcp_pubsub/executor.h>
+#include <tcp_pubsub/publisher.h>
 
 #include <ecal/ecal.h>
 #include <ecal/msg/subscriber.h>
@@ -34,7 +34,7 @@ int main(int argc, char** argv)
   uint16_t                           start_port;
   std::vector<std::string>           topics;
   std::vector<eCAL::CSubscriber>     ecal_subscribers_;
-  std::vector<tcpub::Publisher>      tcp_publishers_;
+  std::vector<tcp_pubsub::Publisher>      tcp_publishers_;
 
   if (argc < 3)
   {
@@ -61,7 +61,7 @@ int main(int argc, char** argv)
   tcp_publishers_  .reserve(topics.size());
 
   // Create executor
-  auto executor = std::make_shared<tcpub::Executor>(2);
+  auto executor = std::make_shared<tcp_pubsub::Executor>(2);
 
   // Create publishers
   for (int i = 0; i < topics.size(); i++)

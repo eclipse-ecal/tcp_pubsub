@@ -9,7 +9,9 @@
 
 #include <stdint.h>
 
-namespace tcpub
+#include "tcp_pubsub_version.h"
+
+namespace tcp_pubsub
 {
   namespace logger
   {
@@ -31,22 +33,22 @@ namespace tcpub
                 switch (log_level)
                 {
                 case LogLevel::DebugVerbose:
-                  std::cout << "[TCPub] [Debug+]  " + message + "\n";
+                  std::cout << "[TCP ps] [Debug+]  " + message + "\n";
                   break;
                 case LogLevel::Debug:
-                  std::cout << "[TCPub] [Debug]   " + message + "\n";
+                  std::cout << "[TCP ps] [Debug]   " + message + "\n";
                   break;
                 case LogLevel::Info:
-                  std::cout << "[TCPub] [Info]    " + message + "\n";
+                  std::cout << "[TCP ps] [Info]    " + message + "\n";
                   break;
                 case LogLevel::Warning:
-                  std::cerr << "[TCPub] [Warning] " + message + "\n";
+                  std::cerr << "[TCP ps] [Warning] " + message + "\n";
                   break;
                 case LogLevel::Error:
-                  std::cerr << "[TCPub] [Error]   " + message + "\n";
+                  std::cerr << "[TCP ps] [Error]   " + message + "\n";
                   break;
                 case LogLevel::Fatal:
-                  std::cerr << "[TCPub] [Fatal]   " + message + "\n";
+                  std::cerr << "[TCP ps] [Fatal]   " + message + "\n";
                   break;
                 default:
                   break;
@@ -61,19 +63,19 @@ namespace tcpub
                 case LogLevel::DebugVerbose:
                   break;
                 case LogLevel::Debug:
-                  std::cout << "[TCPub] [Debug]   " + message + "\n";
+                  std::cout << "[TCP ps] [Debug]   " + message + "\n";
                   break;
                 case LogLevel::Info:
-                  std::cout << "[TCPub] [Info]    " + message + "\n";
+                  std::cout << "[TCP ps] [Info]    " + message + "\n";
                   break;
                 case LogLevel::Warning:
-                  std::cerr << "[TCPub] [Warning] " + message + "\n";
+                  std::cerr << "[TCP ps] [Warning] " + message + "\n";
                   break;
                 case LogLevel::Error:
-                  std::cerr << "[TCPub] [Error]   " + message + "\n";
+                  std::cerr << "[TCP ps] [Error]   " + message + "\n";
                   break;
                 case LogLevel::Fatal:
-                  std::cerr << "[TCPub] [Fatal]   " + message + "\n";
+                  std::cerr << "[TCP ps] [Fatal]   " + message + "\n";
                   break;
                 default:
                   break;

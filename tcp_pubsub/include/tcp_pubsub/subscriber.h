@@ -13,12 +13,15 @@
 #include "subscriber_session.h"
 #include "callback_data.h"
 
-namespace tcpub
+#include "tcp_pubsub_version.h"
+#include "tcp_pubsub_export.h"
+
+namespace tcp_pubsub
 {
   class Subscriber_Impl;
 
   /**
-   * @brief The Subscriber side of tcpub
+   * @brief The Subscriber side of tcp_pubsub
    * 
    * A subscriber can connect to one or multiple publishers and receive data
    * from them. As TCP actually works with 1:1 connections, you need to create a
@@ -57,18 +60,18 @@ namespace tcpub
      *              The (global) executor that shall execute the workload and be
      *              used for logging.
      */
-    Subscriber(const std::shared_ptr<Executor>& executor);
+    TCP_PUBSUB_EXPORT Subscriber(const std::shared_ptr<Executor>& executor);
 
     // Copy
-    Subscriber(const Subscriber&)            = default;
-    Subscriber& operator=(const Subscriber&) = default;
+    TCP_PUBSUB_EXPORT Subscriber(const Subscriber&)            = default;
+    TCP_PUBSUB_EXPORT Subscriber& operator=(const Subscriber&) = default;
 
     // Move
-    Subscriber& operator=(Subscriber&&)      = default;
-    Subscriber(Subscriber&&)                 = default;
+    TCP_PUBSUB_EXPORT Subscriber& operator=(Subscriber&&)      = default;
+    TCP_PUBSUB_EXPORT Subscriber(Subscriber&&)                 = default;
 
     // Destructor
-    ~Subscriber();
+    TCP_PUBSUB_EXPORT ~Subscriber();
 
   public:
     /**
@@ -104,7 +107,7 @@ namespace tcpub
      * 
      * @return A shared pointer to the session. You don't need to store it.
      */
-    std::shared_ptr<SubscriberSession>              addSession(const std::string& address, uint16_t port, int max_reconnection_attempts = -1);
+    TCP_PUBSUB_EXPORT std::shared_ptr<SubscriberSession>              addSession(const std::string& address, uint16_t port, int max_reconnection_attempts = -1);
 
     /**
      * @brief Get a list of all Sessions.
@@ -115,7 +118,7 @@ namespace tcpub
      * 
      * @return a list of all sessions.
      */
-    std::vector<std::shared_ptr<SubscriberSession>> getSessions() const;
+    TCP_PUBSUB_EXPORT std::vector<std::shared_ptr<SubscriberSession>> getSessions() const;
 
     /**
      * @brief Set a receive-data-callback
@@ -141,7 +144,7 @@ namespace tcpub
      *   your callback needs too long to process, you can cause all Publishers
      *   and Subscriber sessions to block, because the thread pool is busy
      *   processing callbacks and cannot work on the TCP sockets any more
-     * - Internally in tcpub, a synchronous callback is used to feed the
+     * - Internally in tcp_pubsub, a synchronous callback is used to feed the
      *   asynchronous callback with new data. This is what it is meant for. So
      *   if you only want to pass the received shared_ptr<char> to your own
      *   queue or worker thread, you may actually want to use a synchronous
@@ -152,12 +155,12 @@ namespace tcpub
      * @param callback_function
      * @param synchronous_execution
      */
-    void setCallback  (const std::function<void(const CallbackData& callback_data)>& callback_function, bool synchronous_execution = false);
+    TCP_PUBSUB_EXPORT void setCallback  (const std::function<void(const CallbackData& callback_data)>& callback_function, bool synchronous_execution = false);
 
     /**
      * @brief Clears the callback and removes all references kept internally.
      */
-    void clearCallback();
+    TCP_PUBSUB_EXPORT void clearCallback();
 
     /**
      * @brief Shuts down the Subscriber and all Sessions
@@ -172,7 +175,7 @@ namespace tcpub
      * obviously will return before the callback has finished.
      * 
      */
-    void cancel();
+    TCP_PUBSUB_EXPORT void cancel();
 
   private:
     std::shared_ptr<Subscriber_Impl> subscriber_impl_;

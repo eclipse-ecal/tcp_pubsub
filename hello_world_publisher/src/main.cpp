@@ -4,15 +4,15 @@
 #include <iostream>
 #include <thread>
 
-#include <tcpub/executor.h>
-#include <tcpub/publisher.h>
+#include <tcp_pubsub/executor.h>
+#include <tcp_pubsub/publisher.h>
 
 int main()
 {
-  std::shared_ptr<tcpub::Executor> executor = std::make_shared<tcpub::Executor>(6);
+  std::shared_ptr<tcp_pubsub::Executor> executor = std::make_shared<tcp_pubsub::Executor>(6);
 
   int counter = 0;
-  tcpub::Publisher hello_world_publisher(executor, 1588);
+  tcp_pubsub::Publisher hello_world_publisher(executor, 1588);
 
   for (;;)
   {

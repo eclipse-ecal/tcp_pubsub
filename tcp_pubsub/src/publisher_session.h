@@ -9,9 +9,9 @@
 #include <asio.hpp>
 
 #include "tcp_header.h"
-#include "tcpub_logger_abstraction.h"
+#include "tcp_pubsub_logger_abstraction.h"
 
-namespace tcpub
+namespace tcp_pubsub
 {
   class PublisherSession
     : public std::enable_shared_from_this<PublisherSession>
@@ -34,7 +34,7 @@ namespace tcpub
   public:
     PublisherSession(const std::shared_ptr<asio::io_service>&                               io_service
                     , const std::function<void(const std::shared_ptr<PublisherSession>&)>&  session_closed_handler
-                    , const tcpub::logger::logger_t&                                        log_function);
+                    , const tcp_pubsub::logger::logger_t&                                        log_function);
 
     // Copy
     PublisherSession(const PublisherSession&)            = delete;

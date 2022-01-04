@@ -7,8 +7,8 @@
 
 #include <atomic>
 
-#include <tcpub/executor.h>
-#include <tcpub/subscriber.h>
+#include <tcp_pubsub/executor.h>
+#include <tcp_pubsub/subscriber.h>
 
 std::atomic<int> messages_received;
 
@@ -23,9 +23,9 @@ void printLog()
 }
 
 int main() {
-  std::shared_ptr<tcpub::Executor> executor = std::make_shared<tcpub::Executor>(6, tcpub::logger::logger_no_verbose_debug);
+  std::shared_ptr<tcp_pubsub::Executor> executor = std::make_shared<tcp_pubsub::Executor>(6, tcp_pubsub::logger::logger_no_verbose_debug);
 
-  tcpub::Subscriber performance_subscriber(executor);
+  tcp_pubsub::Subscriber performance_subscriber(executor);
   performance_subscriber.addSession("127.0.0.1", 1588);
 
   std::thread print_thread(printLog);

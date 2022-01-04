@@ -1,0 +1,4 @@
+@PACKAGE_INIT@
+
+INCLUDE("@PACKAGE_TCP_PUBSUB_INSTALL_CMAKE_DIR@/tcp_pubsubTargets.cmake")
+find_package(Threads)

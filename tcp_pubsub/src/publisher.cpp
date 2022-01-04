@@ -1,12 +1,12 @@
 // Copyright (c) Continental. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for details.
 
-#include <tcpub/publisher.h>
+#include <tcp_pubsub/publisher.h>
 
 #include "executor_impl.h"
 #include "publisher_impl.h"
 
-namespace tcpub
+namespace tcp_pubsub
 {
   Publisher::Publisher(const std::shared_ptr<Executor>& executor, const std::string& address, uint16_t port)
     : publisher_impl_(std::make_shared<Publisher_Impl>(executor))

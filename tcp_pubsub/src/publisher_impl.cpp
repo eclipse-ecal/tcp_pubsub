@@ -8,7 +8,7 @@
 
 #include "executor_impl.h"
 
-namespace tcpub
+namespace tcp_pubsub
 {
 
   ////////////////////////////////////////////////
@@ -26,7 +26,7 @@ namespace tcpub
   // Destructor
   Publisher_Impl::~Publisher_Impl()
   {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     std::stringstream ss;
     ss << std::this_thread::get_id();
     std::string thread_id = ss.str();
@@ -38,7 +38,7 @@ namespace tcpub
       cancel();
     }
 
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose, "Publisher " + localEndpointToString() + ": Deleted.");
 #endif
   }
@@ -49,7 +49,7 @@ namespace tcpub
   
   bool Publisher_Impl::start(const std::string& address, uint16_t port)
   {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose, "Publisher: Parsing address " + address + ":" + std::to_string(port) + ".");
 #endif
 
@@ -62,7 +62,7 @@ namespace tcpub
       return false;
     }
     
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose, "Publisher " + toString(endpoint) + ": Opening acceptor.");
 #endif
 
@@ -76,7 +76,7 @@ namespace tcpub
       }
     }
 
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose, "Publisher " + toString(endpoint) + ": Setting \"reuse_address\" option.");
 #endif
 
@@ -90,7 +90,7 @@ namespace tcpub
       }
     }
 
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose, "Publisher " + toString(endpoint) + ": Binding acceptor to the endpoint.");
 #endif
 
@@ -104,7 +104,7 @@ namespace tcpub
       }
     }
 
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose, "Publisher " + toString(endpoint) + ": Listening on acceptor.");
 #endif
 
@@ -130,7 +130,7 @@ namespace tcpub
   void Publisher_Impl::cancel()
   {
 
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "Publisher " + localEndpointToString() + ": Shutting down");
 #endif
 
@@ -156,7 +156,7 @@ namespace tcpub
 
   void Publisher_Impl::acceptClient()
   {
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "Publisher " + localEndpointToString() + ": Waiting for new client...");
 #endif
 
@@ -169,7 +169,7 @@ namespace tcpub
                 if (session_it != me->publisher_sessions_.end())
                 {
                   me->publisher_sessions_.erase(session_it);
-            #if (TCPUB_LOG_DEBUG_ENABLED)
+            #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
                   me->log_(logger::LogLevel::Debug, "Publisher " + me->localEndpointToString() + ": Successfully removed Session to subscriber " + session->remoteEndpointToString() + ". Current subscriber count: " + std::to_string(me->publisher_sessions_.size()) + ".");
             #endif
                 }
@@ -200,7 +200,7 @@ namespace tcpub
                             {
                               std::lock_guard<std::mutex> publisher_sessions_lock_(me->publisher_sessions_mutex_);
                               me->publisher_sessions_.push_back(session);
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
                               me->log_(logger::LogLevel::Debug, "Publisher " + me->localEndpointToString() + ": Current subscriber count: " + std::to_string(me->publisher_sessions_.size()));
 #endif
                             }
@@ -227,7 +227,7 @@ namespace tcpub
       std::lock_guard<std::mutex> publisher_sessions_lock(publisher_sessions_mutex_);
       if (publisher_sessions_.empty())
       {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
         log_(logger::LogLevel::DebugVerbose, "Publisher::send " + localEndpointToString() + ": No connection to any subscriber. Skip sending data.");
 #endif
         return true;
@@ -237,7 +237,7 @@ namespace tcpub
     // If a subsriber is connected, we need to initialize a buffer.
     std::shared_ptr<std::vector<char>> buffer = buffer_pool.allocate();
 
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     std::stringstream buffer_pointer_ss;
     buffer_pointer_ss << "0x" << std::hex << buffer.get();
     const std::string buffer_pointer_string = buffer_pointer_ss.str();
@@ -264,12 +264,12 @@ namespace tcpub
       }
       buffer->resize(complete_size);
 
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       log_(logger::LogLevel::DebugVerbose, "Publisher::send " + localEndpointToString() + ": Filling buffer " + buffer_pointer_string + " with header and data.Entire buffer size is " + std::to_string(buffer->size()) + " bytes.");
 #endif
 
       // Fill header and copy the given data to the buffer
-      auto header = reinterpret_cast<tcpub::TcpHeader*>(&(*buffer)[0]);
+      auto header = reinterpret_cast<tcp_pubsub::TcpHeader*>(&(*buffer)[0]);
       header->header_size     = htole16(sizeof(TcpHeader));
       header->type            = MessageContentType::RegularPayload;
       header->reserved        = 0;
@@ -288,7 +288,7 @@ namespace tcpub
     {
       std::lock_guard<std::mutex> publisher_sessions_lock(publisher_sessions_mutex_);
 
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       log_(logger::LogLevel::DebugVerbose, "Publisher::send " + localEndpointToString() + ": Sending buffer " + buffer_pointer_string + " to " + std::to_string(publisher_sessions_.size()) + " subsribers.");
 #endif
 

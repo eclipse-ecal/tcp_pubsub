@@ -4,18 +4,18 @@
 #include <iostream>
 #include <thread>
 
-#include <tcpub/executor.h>
-#include <tcpub/subscriber.h>
+#include <tcp_pubsub/executor.h>
+#include <tcp_pubsub/subscriber.h>
 
 int main()
 {
-  std::shared_ptr<tcpub::Executor> executor = std::make_shared<tcpub::Executor>(4);
+  std::shared_ptr<tcp_pubsub::Executor> executor = std::make_shared<tcp_pubsub::Executor>(4);
 
-  tcpub::Subscriber hello_world_subscriber(executor);
+  tcp_pubsub::Subscriber hello_world_subscriber(executor);
   auto session1 = hello_world_subscriber.addSession("127.0.0.1", 1588);
 
-  std::function<void(const tcpub::CallbackData& callback_data)>callback_function
-        = [](const tcpub::CallbackData& callback_data) -> void
+  std::function<void(const tcp_pubsub::CallbackData& callback_data)>callback_function
+        = [](const tcp_pubsub::CallbackData& callback_data) -> void
           {
             std::string temp_string_representation(callback_data.buffer_->data(), callback_data.buffer_->size());
             std::cout << "Received playload: " << temp_string_representation << std::endl;

@@ -1,11 +1,11 @@
 // Copyright (c) Continental. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for details.
 
-#include <tcpub/subscriber_session.h>
+#include <tcp_pubsub/subscriber_session.h>
 
 #include "subscriber_session_impl.h"
 
-namespace tcpub
+namespace tcp_pubsub
 {
   SubscriberSession::SubscriberSession(const std::shared_ptr<SubscriberSession_Impl>& impl)
     : subscriber_session_impl_(impl)

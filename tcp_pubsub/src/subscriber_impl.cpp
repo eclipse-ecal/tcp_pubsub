@@ -8,7 +8,7 @@
 #include "subscriber_session_impl.h"
 #include "executor_impl.h"
 
-namespace tcpub
+namespace tcp_pubsub
 {
   ////////////////////////////////////////////////
   // Constructor & Destructor
@@ -24,14 +24,14 @@ namespace tcpub
   // Destructor
   Subscriber_Impl::~Subscriber_Impl()
   {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     std::stringstream ss;
     ss << std::this_thread::get_id();
     std::string thread_id = ss.str();
     log_(logger::LogLevel::DebugVerbose, "Subscriber " + subscriberIdString() + ": Deleting from thread " + thread_id + "...");
 #endif
 
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "Subscriber " + subscriberIdString() + ": Deleted.");
 #endif
   }
@@ -41,7 +41,7 @@ namespace tcpub
   ////////////////////////////////////////////////
   std::shared_ptr<SubscriberSession> Subscriber_Impl::addSession(const std::string& address, uint16_t port, int max_reconnection_attempts)
   {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose, "Subscriber " + subscriberIdString() + ": Adding session for endpoint " + address + ":" + std::to_string(port) + ".");
 #endif
 
@@ -56,7 +56,7 @@ namespace tcpub
     std::function<void(const std::shared_ptr<SubscriberSession_Impl>&)> subscriber_session_closed_handler
             = [me = shared_from_this()](const std::shared_ptr<SubscriberSession_Impl>& subscriber_session_impl) -> void
               {
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
                   me->log_(logger::LogLevel::Debug, "Subscriber " + me->subscriberIdString() + ": Removing session " + subscriber_session_impl->remoteEndpointToString() + ".");
 #endif
                 std::lock_guard<std::mutex>session_list_lock(me->session_list_mutex_);
@@ -69,7 +69,7 @@ namespace tcpub
                 if (session_it != me->session_list_.end())
                 {
                   me->session_list_.erase(session_it);
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
                   me->log_(logger::LogLevel::Debug, "Subscriber " + me->subscriberIdString() + ": Current number of sessions: " + std::to_string(me->session_list_.size()));
 #endif
                 }
@@ -111,14 +111,14 @@ namespace tcpub
 
   void Subscriber_Impl::setCallback(const std::function<void(const CallbackData& callback_data)>& callback_function, bool synchronous_execution)
   {
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "Subscriber " + subscriberIdString() + ": Setting new " + (synchronous_execution ? "synchronous" : "asynchronous") + " callback.");
 #endif
 
     // Stop and remove the old callback thread at first
     if (callback_thread_)
     {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       log_(logger::LogLevel::DebugVerbose, "Subscriber " + subscriberIdString() + ": Stopping old callback thread...");
 #endif
       callback_thread_stop_ = true;
@@ -132,7 +132,7 @@ namespace tcpub
         callback_thread_->join();
 
       callback_thread_.reset();
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       log_(logger::LogLevel::DebugVerbose, "Subscriber " + subscriberIdString() + ": Old callback thread has terminated.");
 #endif
     }
@@ -174,7 +174,7 @@ namespace tcpub
                           std::swap(this_callback_data, me->last_callback_data_); // Now an empty callback data is in "last_callback_data" again
                         }
 
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
                         me->log_(logger::LogLevel::DebugVerbose, "Subscriber " + me->subscriberIdString() + ": Executing asynchronous callback");
 #endif            
                         // Execute the user callback. Note that the callback mutex is not locked any more, so while the expensive user callback is executed, our tcp sessions can already store new data.
@@ -201,7 +201,7 @@ namespace tcpub
       session->subscriber_session_impl_->setSynchronousCallback(
                 [callback = synchronous_user_callback_, me = shared_from_this()](const std::shared_ptr<std::vector<char>>& buffer, const std::shared_ptr<TcpHeader>& /*header*/)->void
                 {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
                   me->log_(logger::LogLevel::DebugVerbose, "Subscriber " + me->subscriberIdString() + ": Executing synchronous callback");
 #endif            
                   std::lock_guard<std::mutex> callback_lock(me->last_callback_data_mutex_);
@@ -218,7 +218,7 @@ namespace tcpub
       session->subscriber_session_impl_->setSynchronousCallback(
                 [me = shared_from_this()](const std::shared_ptr<std::vector<char>>& buffer, const std::shared_ptr<TcpHeader>& /*header*/)->void
                 {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
                   me->log_(logger::LogLevel::DebugVerbose, "Subscriber " + me->subscriberIdString() + ": Storing data for  asynchronous callback");
 #endif            
                   std::lock_guard<std::mutex> callback_lock(me->last_callback_data_mutex_);
@@ -234,7 +234,7 @@ namespace tcpub
 
   void Subscriber_Impl::cancel()
   {
-#if (TCPUB_LOG_DEBUG_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "Subscriber " + subscriberIdString() + ": Cancelling...");
 #endif
 
@@ -249,7 +249,7 @@ namespace tcpub
     // Stop and remove the old callback thread at first
     if (callback_thread_)
     {
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       log_(logger::LogLevel::DebugVerbose, "Subscriber " + subscriberIdString() + ": Stopping callback thread...");
 #endif
       callback_thread_stop_ = true;
@@ -263,7 +263,7 @@ namespace tcpub
         callback_thread_->join();
 
       callback_thread_.reset();
-#if (TCPUB_LOG_DEBUG_VERBOSE_ENABLED)
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       log_(logger::LogLevel::DebugVerbose, "Subscriber " + subscriberIdString() + ": Callback thread has terminated.");
 #endif
     }

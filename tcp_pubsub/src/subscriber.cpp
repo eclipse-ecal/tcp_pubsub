@@ -1,14 +1,14 @@
 // Copyright (c) Continental. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for details.
 
-#include <tcpub/subscriber.h>
+#include <tcp_pubsub/subscriber.h>
 
-#include <tcpub/executor.h>
+#include <tcp_pubsub/executor.h>
 
 #include "subscriber_impl.h"
 #include "executor_impl.h"
 
-namespace tcpub
+namespace tcp_pubsub
 {
   Subscriber::Subscriber(const std::shared_ptr<Executor>& executor)
     : subscriber_impl_(std::make_shared<Subscriber_Impl>(executor))

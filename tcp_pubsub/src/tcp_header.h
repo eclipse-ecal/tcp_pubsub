@@ -5,7 +5,7 @@
 
 #include <stdint.h>
 
-namespace tcpub
+namespace tcp_pubsub
 {
   enum class MessageContentType : uint8_t
   {

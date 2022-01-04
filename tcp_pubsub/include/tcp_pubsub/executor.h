@@ -8,9 +8,12 @@
 
 #include <stdint.h>
 
-#include "tcpub_logger.h"
+#include "tcp_pubsub_logger.h"
 
-namespace tcpub
+#include "tcp_pubsub_version.h"
+#include "tcp_pubsub_export.h"
+
+namespace tcp_pubsub
 {
   // Foward-declare implementation
   class Executor_Impl;
@@ -42,20 +45,20 @@ namespace tcpub
      * @param[in] log_function
      *              A function (LogLevel, string)->void that is used for logging.
      */
-    Executor(size_t thread_count, const tcpub::logger::logger_t& log_function = tcpub::logger::default_logger);
-    ~Executor();
+    TCP_PUBSUB_EXPORT Executor(size_t thread_count, const tcp_pubsub::logger::logger_t& log_function = tcp_pubsub::logger::default_logger);
+    TCP_PUBSUB_EXPORT ~Executor();
 
     // Copy
-    Executor(const Executor&)            = delete;
-    Executor& operator=(const Executor&) = delete;
+    TCP_PUBSUB_EXPORT Executor(const Executor&)            = delete;
+    TCP_PUBSUB_EXPORT Executor& operator=(const Executor&) = delete;
 
     // Move
-    Executor& operator=(Executor&&)      = default;
-    Executor(Executor&&)                 = default;
+    TCP_PUBSUB_EXPORT Executor& operator=(Executor&&)      = default;
+    TCP_PUBSUB_EXPORT Executor(Executor&&)                 = default;
 
   private:
-    friend ::tcpub::Publisher_Impl;
-    friend ::tcpub::Subscriber_Impl;
+    friend ::tcp_pubsub::Publisher_Impl;
+    friend ::tcp_pubsub::Subscriber_Impl;
     std::shared_ptr<Executor_Impl> executor_impl_;
   };
 }

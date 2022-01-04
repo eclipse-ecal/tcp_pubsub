@@ -7,8 +7,8 @@
 #include <thread>
 #include <map>
 
-#include <tcpub/executor.h>
-#include <tcpub/subscriber.h>
+#include <tcp_pubsub/executor.h>
+#include <tcp_pubsub/subscriber.h>
 
 #include <ecal/ecal.h>
 #include <ecal/msg/publisher.h>
@@ -34,7 +34,7 @@ int main(int argc, char** argv)
   std::string                         ip;
   uint16_t                            start_port;
   std::vector<std::string>            topics;
-  std::vector<tcpub::Subscriber> tcp_subscribers;
+  std::vector<tcp_pubsub::Subscriber> tcp_subscribers;
   std::vector<eCAL::CPublisher>       ecal_publishers;
 
   if (argc < 4)
@@ -64,7 +64,7 @@ int main(int argc, char** argv)
   tcp_subscribers.reserve(topics.size());
   ecal_publishers.reserve(topics.size());
 
-  auto executor = std::make_shared<tcpub::Executor>(2);
+  auto executor = std::make_shared<tcp_pubsub::Executor>(2);
 
   // Create publishers
   for (int i = 0; i < topics.size(); i++)
@@ -77,7 +77,7 @@ int main(int argc, char** argv)
     tcp_subscribers.emplace_back(executor);
     tcp_subscribers.back().addSession(ip, start_port + i);
     tcp_subscribers.back().setCallback(
-              [&ecal_publisher = ecal_publishers.back(), topic_name = topics[i]](const tcpub::CallbackData& callback_data)
+              [&ecal_publisher = ecal_publishers.back(), topic_name = topics[i]](const tcp_pubsub::CallbackData& callback_data)
               {
                 ecal_publisher.Send(callback_data.buffer_->data(), callback_data.buffer_->size());
                 messages_received[topic_name]++;
