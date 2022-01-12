@@ -1,3 +1,4 @@
+[![Windows](https://github.com/continental/tcp_pubsub/actions/workflows/build-windows.yml/badge.svg)](https://github.com/continental/tcp_pubsub/actions/workflows/build-windows.yml) [![Ubuntu](https://github.com/continental/tcp_pubsub/actions/workflows/build-ubuntu.yml/badge.svg)](https://github.com/continental/tcp_pubsub/actions/workflows/build-ubuntu.yml) [![macOS](https://github.com/continental/tcp_pubsub/actions/workflows/build-macos.yml/badge.svg)](https://github.com/continental/tcp_pubsub/actions/workflows/build-macos.yml)
 
 # tcp_pubsub - TCP Publish/Subscribe library
 
