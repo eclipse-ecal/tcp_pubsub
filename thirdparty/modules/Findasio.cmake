@@ -1,7 +1,7 @@
 find_path(Asio_INCLUDE_DIR
   NAMES asio.hpp
   PATHS
-  ${CMAKE_CURRENT_LIST_DIR}/../thirdparty/asio/asio/include
+  ${CMAKE_CURRENT_LIST_DIR}/../asio/asio/include
   include
 )
 

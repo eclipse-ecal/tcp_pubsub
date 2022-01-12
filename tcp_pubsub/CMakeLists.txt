@@ -131,7 +131,7 @@ install(
 include(CMakePackageConfigHelpers)
 
 configure_package_config_file(
-  "../cmake/tcp_pubsubConfig.cmake.in"
+  "cmake/tcp_pubsubConfig.cmake.in"
   "${CMAKE_CURRENT_BINARY_DIR}/cmake/tcp_pubsubConfig.cmake"
   INSTALL_DESTINATION ${TCP_PUBSUB_INSTALL_CMAKE_DIR}
   PATH_VARS TCP_PUBSUB_INSTALL_CMAKE_DIR
