@@ -10,6 +10,7 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
 
 find_package(Threads REQUIRED)
 find_package(asio REQUIRED)
+find_package(recycle REQUIRED)
 
 # Include GenerateExportHeader that will create export macros for us
 include(GenerateExportHeader)
