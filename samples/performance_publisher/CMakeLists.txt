@@ -4,7 +4,8 @@ project(performance_publisher)
 
 set(CMAKE_CXX_STANDARD 14)
 
-find_package(tcp_pubsub REQUIRED CONFIG)
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG  TRUE)
+find_package(tcp_pubsub REQUIRED)
 
 set(sources
     src/main.cpp
