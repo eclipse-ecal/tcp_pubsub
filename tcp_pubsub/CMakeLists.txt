@@ -60,6 +60,11 @@ generate_export_header(${PROJECT_NAME}
   BASE_NAME TCP_PUBSUB
 )
 
+install(FILES
+            ${CMAKE_CURRENT_BINARY_DIR}/tcp_pubsub_version.h
+            ${CMAKE_CURRENT_BINARY_DIR}/tcp_pubsub_export.h
+        DESTINATION include/tcp_pubsub)
+
 add_library (tcp_pubsub::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 target_link_libraries(${PROJECT_NAME}
