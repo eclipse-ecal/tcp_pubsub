@@ -13,8 +13,8 @@
 #include "subscriber_session.h"
 #include "callback_data.h"
 
-#include "tcp_pubsub_version.h"
-#include "tcp_pubsub_export.h"
+#include <tcp_pubsub/tcp_pubsub_version.h>
+#include <tcp_pubsub/tcp_pubsub_export.h>
 
 namespace tcp_pubsub
 {

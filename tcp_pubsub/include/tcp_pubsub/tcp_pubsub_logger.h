@@ -9,7 +9,7 @@
 
 #include <stdint.h>
 
-#include "tcp_pubsub_version.h"
+#include <tcp_pubsub/tcp_pubsub_version.h>
 
 namespace tcp_pubsub
 {
