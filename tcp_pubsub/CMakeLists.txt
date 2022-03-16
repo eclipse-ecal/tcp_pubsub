@@ -125,6 +125,14 @@ install(
 
 install(DIRECTORY "include/tcp_pubsub" DESTINATION "include" FILES_MATCHING PATTERN "*.h")
 install(
+  FILES
+    ${PROJECT_BINARY_DIR}/tcp_pubsub_export.h
+    ${PROJECT_BINARY_DIR}/tcp_pubsub_version.h
+  DESTINATION
+    include/tcp_pubsub
+)
+
+install(
   EXPORT tcp_pubsubTargets 
   FILE tcp_pubsubTargets.cmake 
   DESTINATION ${TCP_PUBSUB_INSTALL_CMAKE_DIR}
