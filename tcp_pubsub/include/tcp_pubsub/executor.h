@@ -10,8 +10,8 @@
 
 #include "tcp_pubsub_logger.h"
 
-#include "tcp_pubsub_version.h"
-#include "tcp_pubsub_export.h"
+#include <tcp_pubsub/tcp_pubsub_version.h>
+#include <tcp_pubsub/tcp_pubsub_export.h>
 
 namespace tcp_pubsub
 {
