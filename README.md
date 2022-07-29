@@ -1,4 +1,4 @@
-[![Windows](https://github.com/continental/tcp_pubsub/actions/workflows/build-windows.yml/badge.svg)](https://github.com/continental/tcp_pubsub/actions/workflows/build-windows.yml) [![Ubuntu](https://github.com/continental/tcp_pubsub/actions/workflows/build-ubuntu.yml/badge.svg)](https://github.com/continental/tcp_pubsub/actions/workflows/build-ubuntu.yml) [![macOS](https://github.com/continental/tcp_pubsub/actions/workflows/build-macos.yml/badge.svg)](https://github.com/continental/tcp_pubsub/actions/workflows/build-macos.yml)
+[![Windows](https://github.com/eclipse-ecal/tcp_pubsub/actions/workflows/build-windows.yml/badge.svg)](https://github.com/eclipse-ecal/tcp_pubsub/actions/workflows/build-windows.yml) [![Ubuntu](https://github.com/eclipse-ecal/tcp_pubsub/actions/workflows/build-ubuntu.yml/badge.svg)](https://github.com/eclipse-ecal/tcp_pubsub/actions/workflows/build-ubuntu.yml) [![macOS](https://github.com/eclipse-ecal/tcp_pubsub/actions/workflows/build-macos.yml/badge.svg)](https://github.com/eclipse-ecal/tcp_pubsub/actions/workflows/build-macos.yml)
 
 # tcp_pubsub - TCP Publish/Subscribe library
 
@@ -99,7 +99,7 @@ There are several examples provided that aim to show you the functionality.
 
 2. Checkout this repo and the asio submodule
 	```console
-	git clone https://github.com/continental/tcp_pubsub.git
+	git clone https://github.com/eclipse-ecal/tcp_pubsub.git
 	cd tcp_pubsub
 	git submodule init
 	git submodule update
