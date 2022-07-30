@@ -14,10 +14,13 @@ add_subdirectory(tcp_pubsub)
 
 add_subdirectory(thirdparty/recycle EXCLUDE_FROM_ALL)
 
-add_subdirectory(samples/performance_publisher)
-add_subdirectory(samples/performance_subscriber)
-add_subdirectory(samples/hello_world_publisher)
-add_subdirectory(samples/hello_world_subscriber)
+option(TCP_PUBSUB_BUILD_SAMPLES "Build project samples" ON)
+if(${TCP_PUBSUB_BUILD_SAMPLES})
+    add_subdirectory(samples/performance_publisher)
+    add_subdirectory(samples/performance_subscriber)
+    add_subdirectory(samples/hello_world_publisher)
+    add_subdirectory(samples/hello_world_subscriber)
+endif()
 
 # add_subdirectory(samples/ecal_to_tcp)
 # add_subdirectory(samples/tcp_to_ecal)
