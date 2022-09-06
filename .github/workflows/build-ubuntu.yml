@@ -24,7 +24,7 @@ jobs:
 
     - name: Set Variables (Static)
       run: |
-        if [[ '{{ env.library_type }}' == 'static' ]]; then
+        if [[ '${{ env.library_type }}' == 'static' ]]; then
           echo "build_shared_libs=OFF" >> "$GITHUB_ENV"
           echo "package_postfix=static" >> "$GITHUB_ENV"
         else
@@ -61,7 +61,7 @@ jobs:
     - name: Upload binaries
       uses: actions/upload-artifact@v2
       with:
-        name: tcp-pubsub-linux-{{ env.package_postfix }}
+        name: tcp-pubsub-linux-${{ env.package_postfix }}
         path: ${{github.workspace}}/_build/_package/*.deb
 
 
