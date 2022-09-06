@@ -28,8 +28,9 @@ jobs:
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      shell: cmd
       run: |
-           cmake -B ${{github.workspace}}/_build_static ^
+           cmake -B ${{github.workspace}}/_build ^
                  -A x64 ^
                  -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ^
                  -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} ^
@@ -37,12 +38,14 @@ jobs:
 
     - name: Build (Release)
       # Build your program with the given configuration
+      shell: cmd
       run: |
            cmake --build ${{github.workspace}}/_build --config Release
            cmake --build ${{github.workspace}}/_build --config Release --target INSTALL
       
     - name: Build (Release)
       # Build your program with the given configuration
+      shell: cmd
       run: |
            cmake --build ${{github.workspace}}/_build --config Release
            cmake --build ${{github.workspace}}/_build --config Release --target DEBUG
