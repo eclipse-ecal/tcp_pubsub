@@ -22,13 +22,13 @@ jobs:
 
     steps:
 
-    - name: Set Variables (Static)
+    - name: Set Variables
       run: |
         if [[ '${{ matrix.library_type }}' == 'static' ]]; then
-          echo "build_shared_libs=OFF" >> "$GITHUB_ENV"
+          echo "build_shared_libs=OFF"  >> "$GITHUB_ENV"
           echo "package_postfix=static" >> "$GITHUB_ENV"
         else
-          echo "build_shared_libs=ON" >> "$GITHUB_ENV"
+          echo "build_shared_libs=ON"   >> "$GITHUB_ENV"
           echo "package_postfix=shared" >> "$GITHUB_ENV"
         fi
     
