@@ -18,9 +18,21 @@ jobs:
 
     strategy:
       matrix:
-        build_shared_libs: [ON, OFF]
+        library_type: [static, shared]
 
     steps:
+
+    - name: Set Variables (Static)
+      env:
+        build_shared_libs: OFF
+        package_postfix: shared
+      if: library_type == "static"
+
+    - name: Set Variables (Shared)
+      env:
+        build_shared_libs: ON
+        package_postfix: shared
+      if: library_type == "shared"
     
     - name: Checkout
       uses: actions/checkout@v2
@@ -38,7 +50,7 @@ jobs:
       run: |
            cmake -B ${{github.workspace}}/_build \
                  -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
-                 -DBUILD_SHARED_LIBS=${{ matrix.build_shared_libs }}
+                 -DBUILD_SHARED_LIBS=${{ env.build_shared_libs }}
 
     - name: Build
       # Build your program with the given configuration
@@ -51,7 +63,7 @@ jobs:
     - name: Upload binaries
       uses: actions/upload-artifact@v2
       with:
-        name: tcp-pubsub-linux
+        name: tcp-pubsub-linux-{{ env.package_postfix }}
         path: ${{github.workspace}}/_build/_package/*.deb
 
 
