@@ -54,7 +54,7 @@ jobs:
 
     - name: Install binaries
       shell: bash
-      run: sudo dpkg -i "${{ github.workspace }}/_build/_package/*.deb"
+      run: sudo dpkg -i ${{ github.workspace }}/_build/_package/*.deb
 
     - name: Compile dummy sample (Release)
       run: |
