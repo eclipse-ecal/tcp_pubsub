@@ -63,7 +63,7 @@ jobs:
       working-directory: ${{ github.workspace }}/samples/dummy_sample
 
     - name: Run dummy sample (Release)
-      run: dummy_sample
+      run: ./dummy_sample
       working-directory: ${{ github.workspace }}/samples/dummy_sample/_build/release
 
     - name: Compile dummy sample (Debug)
@@ -73,7 +73,7 @@ jobs:
       working-directory: ${{ github.workspace }}/samples/dummy_sample
 
     - name: Run dummy sample (Debug)
-      run: dummy_sample
+      run: ./dummy_sample
       working-directory: ${{ github.workspace }}/samples/dummy_sample/_build/debug
 
       
