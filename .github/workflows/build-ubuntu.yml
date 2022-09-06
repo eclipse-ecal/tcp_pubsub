@@ -36,7 +36,7 @@ jobs:
 
     - name: CPack
       run: cpack -G DEB
-      working-directory: ${{ runner.workspace }}/_build
+      working-directory: ${{ github.workspace }}/_build
 
     - name: Upload binaries
       uses: actions/upload-artifact@v2
