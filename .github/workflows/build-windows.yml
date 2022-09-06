@@ -54,4 +54,4 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: tcp-pubsub-win64
-        path: ${{github.workspace}}/_build/${{env.INSTALL_PREFIX}}
+        path: ${{github.workspace}}/${{env.INSTALL_PREFIX}}
