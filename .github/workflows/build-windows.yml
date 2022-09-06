@@ -30,7 +30,7 @@ jobs:
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
            cmake -B ${{github.workspace}}/_build_static ^
-                 -A x64
+                 -A x64 ^
                  -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ^
                  -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} ^
                  -DBUILD_SHARED_LIBS=OFF
