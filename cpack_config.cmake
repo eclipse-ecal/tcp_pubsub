@@ -7,7 +7,7 @@ set(CPACK_PACKAGE_VERSION                   ${PROJECT_VERSION})
 set(CPACK_PACKAGE_VERSION_MAJOR             ${PROJECT_VERSION_MAJOR})
 set(CPACK_PACKAGE_VERSION_MINOR             ${PROJECT_VERSION_MINOR})
 set(CPACK_PACKAGE_VERSION_PATCH             ${PROJECT_VERSION_PATCH})
-set(CPACK_PACKAGE_DIRECTORY                 "${CMAKE_CURRENT_BINARY_DIR}/package")
+set(CPACK_PACKAGE_DIRECTORY                 "${CMAKE_CURRENT_BINARY_DIR}/_package")
 
 set(CPACK_PACKAGE_CONTACT                   "florian.reimold@continental-corporation.com")
 
