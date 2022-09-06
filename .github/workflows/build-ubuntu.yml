@@ -35,7 +35,7 @@ jobs:
       run: cmake --build ${{github.workspace}}/_build --config ${{env.BUILD_TYPE}}
 
     - name: CPack
-      run: cpack ${{github.workspace}} -G DEB
+      run: cpack -B ${{github.workspace}}/_build ${{github.workspace}} -G DEB
 
     - name: Upload binaries
       uses: actions/upload-artifact@v2
