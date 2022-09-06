@@ -16,6 +16,11 @@ jobs:
     # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        build_shared_libs: [ON, OFF]
+        include:
+
     steps:
     
     - name: Checkout
@@ -31,7 +36,10 @@ jobs:
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: cmake -B ${{github.workspace}}/_build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+      run: |
+           cmake -B ${{github.workspace}}/_build \
+                 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+                 -DBUILD_SHARED_LIBS=${{ matrix.build_shared_libs }}
 
     - name: Build
       # Build your program with the given configuration
@@ -44,7 +52,7 @@ jobs:
     - name: Upload binaries
       uses: actions/upload-artifact@v2
       with:
-        name: tcp-pubsub-linux-static
+        name: tcp-pubsub-linux
         path: ${{github.workspace}}/_build/_package/*.deb
 
 
