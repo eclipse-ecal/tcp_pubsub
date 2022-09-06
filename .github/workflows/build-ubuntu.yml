@@ -23,16 +23,14 @@ jobs:
     steps:
 
     - name: Set Variables (Static)
-      env:
-        build_shared_libs: OFF
-        package_postfix: shared
-      if: library_type == "static"
-
-    - name: Set Variables (Shared)
-      env:
-        build_shared_libs: ON
-        package_postfix: shared
-      if: library_type == "shared"
+      run: |
+        if [[ '{{ env.library_type }}' == 'static' ]]; then
+          echo "build_shared_libs=OFF" >> "$GITHUB_ENV"
+          echo "package_postfix=static" >> "$GITHUB_ENV"
+        else
+          echo "build_shared_libs=ON" >> "$GITHUB_ENV"
+          echo "package_postfix=shared" >> "$GITHUB_ENV"
+        fi
     
     - name: Checkout
       uses: actions/checkout@v2
