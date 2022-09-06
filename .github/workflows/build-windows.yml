@@ -43,12 +43,12 @@ jobs:
            cmake --build ${{github.workspace}}/_build --config Release
            cmake --build ${{github.workspace}}/_build --config Release --target INSTALL
       
-    - name: Build (Release)
+    - name: Build (Debug)
       # Build your program with the given configuration
       shell: cmd
       run: |
-           cmake --build ${{github.workspace}}/_build --config Release
-           cmake --build ${{github.workspace}}/_build --config Release --target DEBUG
+           cmake --build ${{github.workspace}}/_build --config Debug
+           cmake --build ${{github.workspace}}/_build --config Debug --target INSTALL
 
     - name: Upload binaries
       uses: actions/upload-artifact@v2
