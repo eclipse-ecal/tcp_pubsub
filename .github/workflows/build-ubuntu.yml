@@ -77,22 +77,22 @@ jobs:
 
     - name: Compile dummy sample (Release)
       run: |
-           cmake -B ${{github.workspace}}/samples/dummy_sample/_build/release -DCMAKE_BUILD_TYPE=Release
-           cmake --build ${{github.workspace}}/samples/dummy_sample/_build/release
-      working-directory: ${{ github.workspace }}/samples/dummy_sample
+           cmake -B ${{github.workspace}}/samples/integration_test/_build/release -DCMAKE_BUILD_TYPE=Release
+           cmake --build ${{github.workspace}}/samples/integration_test/_build/release
+      working-directory: ${{ github.workspace }}/samples/integration_test
 
     - name: Run dummy sample (Release)
-      run: ./dummy_sample
-      working-directory: ${{ github.workspace }}/samples/dummy_sample/_build/release
+      run: ./integration_test
+      working-directory: ${{ github.workspace }}/samples/integration_test/_build/release
 
     - name: Compile dummy sample (Debug)
       run: |
-           cmake -B ${{github.workspace}}/samples/dummy_sample/_build/debug -DCMAKE_BUILD_TYPE=Debug
-           cmake --build ${{github.workspace}}/samples/dummy_sample/_build/debug
-      working-directory: ${{ github.workspace }}/samples/dummy_sample
+           cmake -B ${{github.workspace}}/samples/integration_test/_build/debug -DCMAKE_BUILD_TYPE=Debug
+           cmake --build ${{github.workspace}}/samples/integration_test/_build/debug
+      working-directory: ${{ github.workspace }}/samples/integration_test
 
     - name: Run dummy sample (Debug)
-      run: ./dummy_sample
-      working-directory: ${{ github.workspace }}/samples/dummy_sample/_build/debug
+      run: ./integration_test
+      working-directory: ${{ github.workspace }}/samples/integration_test/_build/debug
 
       

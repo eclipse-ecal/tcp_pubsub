@@ -84,15 +84,15 @@ jobs:
     - name: CMake dummy sample
       shell: cmd
       run: |
-           cmake -B ${{github.workspace}}/samples/dummy_sample/_build ^
+           cmake -B ${{github.workspace}}/samples/integration_test/_build ^
                  -A x64 ^
                  -DCMAKE_PREFIX_PATH=${{github.workspace}}/${{env.INSTALL_PREFIX}}
-      working-directory: ${{ github.workspace }}/samples/dummy_sample
+      working-directory: ${{ github.workspace }}/samples/integration_test
 
     - name: Compile dummy sample (Release)
       shell: cmd
-      run: cmake --build ${{github.workspace}}/samples/dummy_sample/_build --config Release
-      working-directory: ${{ github.workspace }}/samples/dummy_sample
+      run: cmake --build ${{github.workspace}}/samples/integration_test/_build --config Release
+      working-directory: ${{ github.workspace }}/samples/integration_test
 
     - name: Run dummy sample (Release)
       run: |
@@ -100,13 +100,13 @@ jobs:
            {
              $Env:Path = '${{github.workspace}}/${{env.INSTALL_PREFIX}}/bin;' + $Env:Path
            }
-           .\dummy_sample.exe
-      working-directory: ${{ github.workspace }}/samples/dummy_sample/_build/Release
+           .\integration_test.exe
+      working-directory: ${{ github.workspace }}/samples/integration_test/_build/Release
       
     - name: Compile dummy sample (Debug)
       shell: cmd
-      run: cmake --build ${{github.workspace}}/samples/dummy_sample/_build --config Debug
-      working-directory: ${{ github.workspace }}/samples/dummy_sample
+      run: cmake --build ${{github.workspace}}/samples/integration_test/_build --config Debug
+      working-directory: ${{ github.workspace }}/samples/integration_test
 
     - name: Run dummy sample (Debug)
       run: |
@@ -114,5 +114,5 @@ jobs:
            {
              $Env:Path = '${{github.workspace}}/${{env.INSTALL_PREFIX}}/bin;' + $Env:Path
            }
-           .\dummy_sample.exe
-      working-directory: ${{ github.workspace }}/samples/dummy_sample/_build/Debug
+           .\integration_test.exe
+      working-directory: ${{ github.workspace }}/samples/integration_test/_build/Debug
