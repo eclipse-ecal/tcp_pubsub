@@ -75,23 +75,23 @@ jobs:
       shell: bash
       run: sudo dpkg -i ${{ github.workspace }}/_build/_package/*.deb
 
-    - name: Compile dummy sample (Release)
+    - name: Compile integration test (Release)
       run: |
            cmake -B ${{github.workspace}}/samples/integration_test/_build/release -DCMAKE_BUILD_TYPE=Release
            cmake --build ${{github.workspace}}/samples/integration_test/_build/release
       working-directory: ${{ github.workspace }}/samples/integration_test
 
-    - name: Run dummy sample (Release)
+    - name: Run integration test (Release)
       run: ./integration_test
       working-directory: ${{ github.workspace }}/samples/integration_test/_build/release
 
-    - name: Compile dummy sample (Debug)
+    - name: Compile integration test (Debug)
       run: |
            cmake -B ${{github.workspace}}/samples/integration_test/_build/debug -DCMAKE_BUILD_TYPE=Debug
            cmake --build ${{github.workspace}}/samples/integration_test/_build/debug
       working-directory: ${{ github.workspace }}/samples/integration_test
 
-    - name: Run dummy sample (Debug)
+    - name: Run integration test (Debug)
       run: ./integration_test
       working-directory: ${{ github.workspace }}/samples/integration_test/_build/debug
 

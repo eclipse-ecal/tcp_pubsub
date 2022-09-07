@@ -81,7 +81,7 @@ jobs:
     # Test if our binary can be linked against
     ############################################
 
-    - name: CMake dummy sample
+    - name: CMake integration test
       shell: cmd
       run: |
            cmake -B ${{github.workspace}}/samples/integration_test/_build ^
@@ -89,12 +89,12 @@ jobs:
                  -DCMAKE_PREFIX_PATH=${{github.workspace}}/${{env.INSTALL_PREFIX}}
       working-directory: ${{ github.workspace }}/samples/integration_test
 
-    - name: Compile dummy sample (Release)
+    - name: Compile integration test (Release)
       shell: cmd
       run: cmake --build ${{github.workspace}}/samples/integration_test/_build --config Release
       working-directory: ${{ github.workspace }}/samples/integration_test
 
-    - name: Run dummy sample (Release)
+    - name: Run integration test (Release)
       run: |
            if ( '${{ matrix.library_type }}' -eq 'shared' )
            {
@@ -103,12 +103,12 @@ jobs:
            .\integration_test.exe
       working-directory: ${{ github.workspace }}/samples/integration_test/_build/Release
       
-    - name: Compile dummy sample (Debug)
+    - name: Compile integration test (Debug)
       shell: cmd
       run: cmake --build ${{github.workspace}}/samples/integration_test/_build --config Debug
       working-directory: ${{ github.workspace }}/samples/integration_test
 
-    - name: Run dummy sample (Debug)
+    - name: Run integration test (Debug)
       run: |
            if ( '${{ matrix.library_type }}' -eq 'shared' )
            {
