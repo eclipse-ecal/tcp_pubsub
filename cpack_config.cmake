@@ -1,5 +1,3 @@
-include(InstallRequiredSystemLibraries)
-
 set(CPACK_PACKAGE_NAME                      ${PROJECT_NAME})
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY       "A low-level publish-subscribe library operating on TCP/IP")
 set(CPACK_PACKAGE_VENDOR                    "Eclipse eCAL")
