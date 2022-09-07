@@ -53,7 +53,7 @@ jobs:
            cmake -B ${{github.workspace}}/_build ^
                  -A x64 ^
                  -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} ^
-                 -DBUILD_SHARED_LIBS=OFF
+                 -DBUILD_SHARED_LIBS=${{ env.build_shared_libs }}
 
     - name: Build (Release)
       # Build your program with the given configuration
