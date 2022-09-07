@@ -52,6 +52,7 @@ jobs:
       run: |
            cmake -B ${{github.workspace}}/_build ^
                  -A x64 ^
+                 -T 140
                  -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} ^
                  -DBUILD_SHARED_LIBS=${{ env.build_shared_libs }}
 
@@ -96,7 +97,7 @@ jobs:
       run: |
            if ( '${{ matrix.library_type }}' -eq 'shared' )
            {
-             $Env:Path = '${{github.workspace}}/${{env.INSTALL_PREFIX}}/bin' + $Env:Path
+             $Env:Path = '${{github.workspace}}/${{env.INSTALL_PREFIX}}/bin;' + $Env:Path
            }
            .\dummy_sample.exe
       working-directory: ${{ github.workspace }}/samples/dummy_sample/_build/Release
@@ -110,7 +111,7 @@ jobs:
       run: |
            if ( '${{ matrix.library_type }}' -eq 'shared' )
            {
-             $Env:Path = '${{github.workspace}}/${{env.INSTALL_PREFIX}}/bin' + $Env:Path
+             $Env:Path = '${{github.workspace}}/${{env.INSTALL_PREFIX}}/bin;' + $Env:Path
            }
            .\dummy_sample.exe
       working-directory: ${{ github.workspace }}/samples/dummy_sample/_build/Debug
