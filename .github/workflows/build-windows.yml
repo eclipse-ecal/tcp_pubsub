@@ -51,6 +51,7 @@ jobs:
       shell: cmd
       run: |
            cmake -B ${{github.workspace}}/_build ^
+                 -G "Visual Studio 16 2019"
                  -A x64 ^
                  -T 140
                  -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} ^
