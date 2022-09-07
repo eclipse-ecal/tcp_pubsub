@@ -11,6 +11,10 @@ env:
 
 jobs:
   build-windows:
+    strategy:
+      matrix:
+        library_type: [static, shared]
+
     # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
     # You can convert this to a matrix build if you need cross-platform coverage.
     # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
@@ -18,12 +22,28 @@ jobs:
 
     steps:
     
+    - name: Set Variables
+      run: |
+        if ( '${{ matrix.library_type }}' -eq 'static' )
+        {
+          echo "build_shared_libs=OFF"  >> "$Env:GITHUB_ENV"
+          echo "package_postfix=static" >> "$Env:GITHUB_ENV"
+        }
+        else
+        {
+          echo "build_shared_libs=ON"   >> "$Env:GITHUB_ENV"
+          echo "package_postfix=shared" >> "$Env:GITHUB_ENV"
+        }
+
     - name: Checkout
       uses: actions/checkout@v2
       with:
         submodules:  'true'
         fetch-depth: 0
 
+    ############################################
+    # Test-compile the project
+    ############################################
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
@@ -32,7 +52,6 @@ jobs:
       run: |
            cmake -B ${{github.workspace}}/_build ^
                  -A x64 ^
-                 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} ^
                  -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} ^
                  -DBUILD_SHARED_LIBS=OFF
 
@@ -40,18 +59,58 @@ jobs:
       # Build your program with the given configuration
       shell: cmd
       run: |
-           cmake --build ${{github.workspace}}/_build --config Release
+           cmake --build ${{github.workspace}}/_build --config Release --parallel
            cmake --build ${{github.workspace}}/_build --config Release --target INSTALL
       
     - name: Build (Debug)
       # Build your program with the given configuration
       shell: cmd
       run: |
-           cmake --build ${{github.workspace}}/_build --config Debug
+           cmake --build ${{github.workspace}}/_build --config Debug --parallel
            cmake --build ${{github.workspace}}/_build --config Debug --target INSTALL
 
     - name: Upload binaries
       uses: actions/upload-artifact@v2
       with:
-        name: tcp-pubsub-win64
+        name: tcp-pubsub-win64-${{ matrix.library_type }}
         path: ${{github.workspace}}/${{env.INSTALL_PREFIX}}
+
+    ############################################
+    # Test if our binary can be linked against
+    ############################################
+
+    - name: CMake dummy sample
+      shell: cmd
+      run: |
+           cmake -B ${{github.workspace}}/samples/dummy_sample/_build ^
+                 -A x64 ^
+                 -DCMAKE_PREFIX_PATH=${{github.workspace}}/${{env.INSTALL_PREFIX}}
+      working-directory: ${{ github.workspace }}/samples/dummy_sample
+
+    - name: Compile dummy sample (Release)
+      shell: cmd
+      run: cmake --build ${{github.workspace}}/samples/dummy_sample/_build --config Release
+      working-directory: ${{ github.workspace }}/samples/dummy_sample
+
+    - name: Run dummy sample (Release)
+      run: |
+           if ( '${{ matrix.library_type }}' -eq 'shared' )
+           {
+             $Env:Path = '${{github.workspace}}/${{env.INSTALL_PREFIX}}/bin' + $Env:Path
+           }
+           .\dummy_sample.exe
+      working-directory: ${{ github.workspace }}/samples/dummy_sample/_build/Release
+      
+    - name: Compile dummy sample (Debug)
+      shell: cmd
+      run: cmake --build ${{github.workspace}}/samples/dummy_sample/_build --config Debug
+      working-directory: ${{ github.workspace }}/samples/dummy_sample
+
+    - name: Run dummy sample (Debug)
+      run: |
+           if ( '${{ matrix.library_type }}' -eq 'shared' )
+           {
+             $Env:Path = '${{github.workspace}}/${{env.INSTALL_PREFIX}}/bin' + $Env:Path
+           }
+           .\dummy_sample.exe
+      working-directory: ${{ github.workspace }}/samples/dummy_sample/_build/Debug
