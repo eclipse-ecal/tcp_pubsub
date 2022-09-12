@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.5.1)
 
-project(tcp_pubsub VERSION 1.0.0)
+include("${CMAKE_CURRENT_LIST_DIR}/version.cmake")
+project(tcp_pubsub VERSION ${TCP_PUBSUB_VERSION_MAJOR}.${TCP_PUBSUB_VERSION_MINOR}.${TCP_PUBSUB_VERSION_PATCH})
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -112,26 +113,55 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 include(sourcetree.cmake)
 create_source_tree(${includes} ${sources})
 
-##################################
+################################################################################
+### Installation rules
+################################################################################
 
 set(TCP_PUBSUB_INSTALL_CMAKE_DIR "lib/cmake/tcp_pubsub")
 
+# Install Runtime
 install(
   TARGETS ${PROJECT_NAME}
-  EXPORT tcp_pubsubTargets 
-  LIBRARY DESTINATION "lib" 
-  ARCHIVE DESTINATION "lib"   
+  EXPORT tcp_pubsubRuntime
+  RUNTIME DESTINATION "bin"
+  COMPONENT tcp_pubsub_runtime
 )
 
-install(DIRECTORY "include/tcp_pubsub" DESTINATION "include" FILES_MATCHING PATTERN "*.h")
-install(DIRECTORY "${PROJECT_BINARY_DIR}/include/tcp_pubsub" DESTINATION "include" FILES_MATCHING PATTERN "*.h")
+# Install libs (-> dev package)
+install(
+  TARGETS ${PROJECT_NAME}
+  EXPORT tcp_pubsubTargets
+  LIBRARY DESTINATION "lib"
+  ARCHIVE DESTINATION "lib"
+  COMPONENT tcp_pubsub_dev
+)
 
+# Install public header files (-> dev package)
+install(
+  DIRECTORY "include/tcp_pubsub"
+  DESTINATION "include"
+  COMPONENT tcp_pubsub_dev
+  FILES_MATCHING PATTERN "*.h"
+)
+
+# Install the auto-generated header with the export macros (-> dev package)
+install(
+  DIRECTORY "${PROJECT_BINARY_DIR}/include/tcp_pubsub"
+  DESTINATION "include"
+  COMPONENT tcp_pubsub_dev
+  FILES_MATCHING PATTERN "*.h"
+)
+
+# Install Target.cmake file (-> dev packag)
 install(
   EXPORT tcp_pubsubTargets 
   FILE tcp_pubsubTargets.cmake 
   DESTINATION ${TCP_PUBSUB_INSTALL_CMAKE_DIR}
   NAMESPACE tcp_pubsub::
+  COMPONENT tcp_pubsub_dev
 )
+
+# Create and install Config.cmake file (-> dev package)
 
 include(CMakePackageConfigHelpers)
 
@@ -141,5 +171,9 @@ configure_package_config_file(
   INSTALL_DESTINATION ${TCP_PUBSUB_INSTALL_CMAKE_DIR}
   PATH_VARS TCP_PUBSUB_INSTALL_CMAKE_DIR
 )
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/tcp_pubsubConfig.cmake" DESTINATION ${TCP_PUBSUB_INSTALL_CMAKE_DIR})
+install(
+  FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/tcp_pubsubConfig.cmake"
+  DESTINATION ${TCP_PUBSUB_INSTALL_CMAKE_DIR}
+  COMPONENT tcp_pubsub_dev
+)
 

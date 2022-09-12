@@ -43,4 +43,4 @@ CMakeLists.txt.user
 
 #Build dir
 /_build
-
+/samples/integration_test/_build
