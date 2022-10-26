@@ -123,7 +123,7 @@
 #elif defined(__QNXNTO__)
 
 #	include <gulliver.h>
-#	include <net\netbyte.h>
+#	include <net/netbyte.h>
 
 #else
 
