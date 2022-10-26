@@ -1,5 +1,6 @@
 // This file has been taken from:
 // https://gist.github.com/panzi/6856583#file-portable_endian-h
+// It includes manual changes for the QNX platform
 //
 // "License": Public Domain
 // I, Mathias Panzenböck, place this file hereby into the public domain. Use it at your own risk for whatever you like.
@@ -122,47 +123,7 @@
 #elif defined(__QNXNTO__)
 
 #	include <gulliver.h>
-
-#	define __LITTLE_ENDIAN 1234
-#	define __BIG_ENDIAN    4321
-#	define __PDP_ENDIAN    3412
-
-#	if defined(__BIGENDIAN__)
-
-#		define __BYTE_ORDER __BIG_ENDIAN
-
-#		define htobe16(x) (x)
-#		define htobe32(x) (x)
-#		define htobe64(x) (x)
-
-#		define htole16(x) ENDIAN_SWAP16(x)
-#		define htole32(x) ENDIAN_SWAP32(x)
-#		define htole64(x) ENDIAN_SWAP64(x)
-
-#	elif defined(__LITTLEENDIAN__)
-
-#		define __BYTE_ORDER __LITTLE_ENDIAN
-
-#		define htole16(x) (x)
-#		define htole32(x) (x)
-#		define htole64(x) (x)
-
-#		define htobe16(x) ENDIAN_SWAP16(x)
-#		define htobe32(x) ENDIAN_SWAP32(x)
-#		define htobe64(x) ENDIAN_SWAP64(x)
-
-#	else
-
-#		error byte order not supported
-
-#	endif
-
-#	define be16toh(x) ENDIAN_BE16(x)
-#	define be32toh(x) ENDIAN_BE32(x)
-#	define be64toh(x) ENDIAN_BE64(x)
-#	define le16toh(x) ENDIAN_LE16(x)
-#	define le32toh(x) ENDIAN_LE32(x)
-#	define le64toh(x) ENDIAN_LE64(x)
+#	include <net\netbyte.h>
 
 #else
 
