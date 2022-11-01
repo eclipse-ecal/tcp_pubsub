@@ -128,11 +128,11 @@ install(
     DESTINATION "bin"
     COMPONENT tcp_pubsub_runtime
 
-  ARCHIVE
-    DESTINATION "lib"
-    COMPONENT tcp_pubsub_dev
-
   LIBRARY
+    DESTINATION "lib"
+    COMPONENT tcp_pubsub_runtime
+
+  ARCHIVE
     DESTINATION "lib"
     COMPONENT tcp_pubsub_dev
 )
