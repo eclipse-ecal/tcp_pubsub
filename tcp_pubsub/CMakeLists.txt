@@ -119,21 +119,22 @@ create_source_tree(${includes} ${sources})
 
 set(TCP_PUBSUB_INSTALL_CMAKE_DIR "lib/cmake/tcp_pubsub")
 
-# Install Runtime
-install(
-  TARGETS ${PROJECT_NAME}
-  EXPORT tcp_pubsubRuntime
-  RUNTIME DESTINATION "bin"
-  COMPONENT tcp_pubsub_runtime
-)
-
-# Install libs (-> dev package)
+# Install Runtime & Libs
 install(
   TARGETS ${PROJECT_NAME}
   EXPORT tcp_pubsubTargets
-  LIBRARY DESTINATION "lib"
-  ARCHIVE DESTINATION "lib"
-  COMPONENT tcp_pubsub_dev
+  
+  RUNTIME
+    DESTINATION "bin"
+    COMPONENT tcp_pubsub_runtime
+
+  ARCHIVE
+    DESTINATION "lib"
+    COMPONENT tcp_pubsub_dev
+
+  LIBRARY
+    DESTINATION "lib"
+    COMPONENT tcp_pubsub_dev
 )
 
 # Install public header files (-> dev package)
