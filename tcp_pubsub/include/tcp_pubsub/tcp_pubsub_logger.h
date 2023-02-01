@@ -7,7 +7,7 @@
 #include <functional>
 #include <iostream>
 
-#include <stdint.h>
+#include <cstdint>
 
 #include <tcp_pubsub/tcp_pubsub_version.h>
 
@@ -25,7 +25,7 @@ namespace tcp_pubsub
       Fatal,
     };
 
-    typedef std::function<void(const LogLevel, const std::string&)> logger_t;
+    using logger_t = std::function<void (const LogLevel, const std::string &)>;
 
     static const logger_t default_logger
           = [](const LogLevel log_level, const std::string& message)

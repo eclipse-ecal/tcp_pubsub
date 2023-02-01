@@ -20,7 +20,7 @@ namespace tcp_pubsub
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     std::stringstream ss;
     ss << std::this_thread::get_id();
-    std::string thread_id = ss.str();
+    const std::string thread_id = ss.str();
     log_(logger::LogLevel::DebugVerbose, "Executor: Deleting from thread " + thread_id + "...");
 #endif
 
@@ -60,7 +60,7 @@ namespace tcp_pubsub
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
                                   std::stringstream ss;
                                   ss << std::this_thread::get_id();
-                                  std::string thread_id = ss.str();
+                                  const std::string thread_id = ss.str();
 
                                   me->log_(logger::LogLevel::Debug, "Executor: IoService::Run() in thread " + thread_id);
 #endif

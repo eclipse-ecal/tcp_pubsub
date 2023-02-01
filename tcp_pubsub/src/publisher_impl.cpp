@@ -29,7 +29,7 @@ namespace tcp_pubsub
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     std::stringstream ss;
     ss << std::this_thread::get_id();
-    std::string thread_id = ss.str();
+    const std::string thread_id = ss.str();
     log_(logger::LogLevel::DebugVerbose, "Publisher " + localEndpointToString() + ": Deleting from thread " + thread_id + "...");
 #endif
 
@@ -55,7 +55,7 @@ namespace tcp_pubsub
 
     // set up the acceptor to listen on the tcp port
     asio::error_code make_address_ec;
-    asio::ip::tcp::endpoint endpoint(asio::ip::make_address(address, make_address_ec), port);
+    const asio::ip::tcp::endpoint endpoint(asio::ip::make_address(address, make_address_ec), port);
     if (make_address_ec)
     {
       log_(logger::LogLevel::Error,  "Publisher: Error parsing address \"" + address + ":" + std::to_string(port) + "\": " + make_address_ec.message());
@@ -145,7 +145,7 @@ namespace tcp_pubsub
     std::vector<std::shared_ptr<PublisherSession>> publisher_sessions;
     {
       // Copy the list, so we can safely iterate over it without locking the mutex
-      std::lock_guard<std::mutex> publisher_sessions_lock(publisher_sessions_mutex_);
+      const std::lock_guard<std::mutex> publisher_sessions_lock(publisher_sessions_mutex_);
       publisher_sessions = publisher_sessions_;
     }
     for (const auto& session : publisher_sessions)
@@ -160,10 +160,10 @@ namespace tcp_pubsub
     log_(logger::LogLevel::Debug, "Publisher " + localEndpointToString() + ": Waiting for new client...");
 #endif
 
-    std::function<void(const std::shared_ptr<PublisherSession>&)> publisher_session_closed_handler
+    const std::function<void(const std::shared_ptr<PublisherSession>&)> publisher_session_closed_handler
             = [me = shared_from_this()](const std::shared_ptr<PublisherSession>& session) -> void
               {
-                std::lock_guard<std::mutex> publisher_sessions_lock(me->publisher_sessions_mutex_);
+                const std::lock_guard<std::mutex> publisher_sessions_lock(me->publisher_sessions_mutex_);
 
                 auto session_it = std::find(me->publisher_sessions_.begin(), me->publisher_sessions_.end(), session);
                 if (session_it != me->publisher_sessions_.end())
@@ -198,7 +198,7 @@ namespace tcp_pubsub
 
                             // Add the session to the session list
                             {
-                              std::lock_guard<std::mutex> publisher_sessions_lock_(me->publisher_sessions_mutex_);
+                              const std::lock_guard<std::mutex> publisher_sessions_lock_(me->publisher_sessions_mutex_);
                               me->publisher_sessions_.push_back(session);
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
                               me->log_(logger::LogLevel::Debug, "Publisher " + me->localEndpointToString() + ": Current subscriber count: " + std::to_string(me->publisher_sessions_.size()));
@@ -224,7 +224,7 @@ namespace tcp_pubsub
 
     // Don' send data if no subscriber is connected
     {
-      std::lock_guard<std::mutex> publisher_sessions_lock(publisher_sessions_mutex_);
+      const std::lock_guard<std::mutex> publisher_sessions_lock(publisher_sessions_mutex_);
       if (publisher_sessions_.empty())
       {
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
@@ -235,7 +235,7 @@ namespace tcp_pubsub
     }
 
     // If a subsriber is connected, we need to initialize a buffer.
-    std::shared_ptr<std::vector<char>> buffer = buffer_pool.allocate();
+    const std::shared_ptr<std::vector<char>> buffer = buffer_pool.allocate();
 
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     std::stringstream buffer_pointer_ss;
@@ -246,7 +246,7 @@ namespace tcp_pubsub
     // Check the size of the buffer and resize it
     {
       // Size of header
-      size_t header_size = sizeof(TcpHeader);
+      const size_t header_size = sizeof(TcpHeader);
 
       // Size of user data, i.e. all payload(s)
       size_t entire_payload_size = 0;
@@ -269,7 +269,7 @@ namespace tcp_pubsub
 #endif
 
       // Fill header and copy the given data to the buffer
-      auto header = reinterpret_cast<tcp_pubsub::TcpHeader*>(&(*buffer)[0]);
+      auto *header = reinterpret_cast<tcp_pubsub::TcpHeader*>(buffer->data());
       header->header_size     = htole16(sizeof(TcpHeader));
       header->type            = MessageContentType::RegularPayload;
       header->reserved        = 0;
@@ -279,7 +279,7 @@ namespace tcp_pubsub
       size_t current_position = header_size;
       for (const auto& payload : payloads)
       {
-        if (payload.first && (payload.second > 0))
+        if ((payload.first != nullptr) && (payload.second > 0))
         {
           memcpy(&((*buffer)[current_position]), payload.first, payload.second);
           current_position += payload.second;
@@ -289,7 +289,7 @@ namespace tcp_pubsub
 
     // Lock the sessions mutex again and send out the prepared buffer. All publisher sessions will operate on the same buffer!
     {
-      std::lock_guard<std::mutex> publisher_sessions_lock(publisher_sessions_mutex_);
+      const std::lock_guard<std::mutex> publisher_sessions_lock(publisher_sessions_mutex_);
 
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       log_(logger::LogLevel::DebugVerbose, "Publisher::send " + localEndpointToString() + ": Sending buffer " + buffer_pointer_string + " to " + std::to_string(publisher_sessions_.size()) + " subsribers.");
@@ -313,7 +313,7 @@ namespace tcp_pubsub
     if (is_running_)
     {
       asio::error_code ec;
-      auto local_endpoint = acceptor_.local_endpoint();
+      auto local_endpoint = acceptor_.local_endpoint(ec);
       if (!ec)
         return local_endpoint.port();
       else
@@ -327,7 +327,7 @@ namespace tcp_pubsub
 
   size_t Publisher_Impl::getSubscriberCount() const
   {
-    std::lock_guard<std::mutex> publisher_sessions_lock(publisher_sessions_mutex_);
+    const std::lock_guard<std::mutex> publisher_sessions_lock(publisher_sessions_mutex_);
     return publisher_sessions_.size();
   }
 

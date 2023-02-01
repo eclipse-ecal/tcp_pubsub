@@ -37,7 +37,7 @@ namespace tcp_pubsub
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     std::stringstream ss;
     ss << std::this_thread::get_id();
-    std::string thread_id = ss.str();
+    const std::string thread_id = ss.str();
     log_(logger::LogLevel::DebugVerbose, "PublisherSession " + endpointToString() + ": Deleting from thread " + thread_id + "...");
 #endif
 
@@ -80,7 +80,7 @@ namespace tcp_pubsub
     // Check if this session has already been canceled while at the same time
     // setting it to the CANCELED. This ensures, that the handler will only be
     // run once.
-    State previous_state = (state_.exchange(State::Canceled)); 
+    const State previous_state = (state_.exchange(State::Canceled));
     if (previous_state == State::Canceled)
       return;
 
@@ -113,7 +113,7 @@ namespace tcp_pubsub
     log_(logger::LogLevel::DebugVerbose,  "PublisherSession " + endpointToString() + ": Waiting for data...");
 #endif
 
-    std::shared_ptr<TcpHeader> header = std::make_shared<TcpHeader>();
+    const std::shared_ptr<TcpHeader> header = std::make_shared<TcpHeader>();
 
     asio::async_read(data_socket_
                     , asio::buffer(&(header->header_size), sizeof(header->header_size))
@@ -220,7 +220,7 @@ namespace tcp_pubsub
     }
 
     // Create a buffer for the playload
-    std::shared_ptr<std::vector<char>> data_buffer = std::make_shared<std::vector<char>>();
+    const std::shared_ptr<std::vector<char>> data_buffer = std::make_shared<std::vector<char>>();
     data_buffer->resize(le64toh(header->data_size));
 
     asio::async_read(data_socket_
@@ -239,7 +239,7 @@ namespace tcp_pubsub
                                     if (header->type == MessageContentType::ProtocolHandshake)
                                     {
                                       ProtocolHandshakeMessage handshake_message;
-                                      size_t bytes_to_copy = std::min(data_buffer->size(), sizeof(ProtocolHandshakeMessage));
+                                      const size_t bytes_to_copy = std::min(data_buffer->size(), sizeof(ProtocolHandshakeMessage));
                                       std::memcpy(&handshake_message, data_buffer->data(), bytes_to_copy);
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
                                       me->log_(logger::LogLevel::Debug,  "PublisherSession " + me->endpointToString() + ": Received Handshake message. Maximum supported protocol version from subsriber: v" + std::to_string(handshake_message.protocol_version));
@@ -263,7 +263,7 @@ namespace tcp_pubsub
     log_(logger::LogLevel::Debug,  "PublisherSession " + endpointToString() + ": Sending ProtocolHandshakeResponse.");
 #endif
 
-    std::shared_ptr<std::vector<char>> buffer = std::make_shared<std::vector<char>>();
+    const std::shared_ptr<std::vector<char>> buffer = std::make_shared<std::vector<char>>();
     buffer->resize(sizeof(TcpHeader) + sizeof(ProtocolHandshakeMessage));
 
     TcpHeader* header   = reinterpret_cast<TcpHeader*>(buffer->data());
@@ -277,7 +277,7 @@ namespace tcp_pubsub
 
     // Send the buffer directly to the client
     sendBufferToClient(buffer);
-    State old_state = state_.exchange(State::Running);
+    const State old_state = state_.exchange(State::Running);
     if (old_state != State::Handshaking)
       state_ = old_state;
   }
@@ -298,7 +298,7 @@ namespace tcp_pubsub
 #endif
 
     {
-      std::lock_guard<std::mutex> next_buffer_lock(next_buffer_mutex_);
+      const std::lock_guard<std::mutex> next_buffer_lock(next_buffer_mutex_);
 
       if ((state_ == State::Running) &&  !sending_in_progress_)
       {
@@ -346,7 +346,7 @@ namespace tcp_pubsub
                       return;
 
                     {
-                      std::lock_guard<std::mutex> next_buffer_lock(me->next_buffer_mutex_);
+                      const std::lock_guard<std::mutex> next_buffer_lock(me->next_buffer_mutex_);
 
                       if (me->next_buffer_to_send_)
                       {

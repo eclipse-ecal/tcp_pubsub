@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 
 #include <memory>
 #include <string>
@@ -174,7 +174,7 @@ namespace tcp_pubsub
      * 
      * @return Whether sending has been successfull (i.e. the publisher is running)
      */
-    TCP_PUBSUB_EXPORT bool send(const char* const data, size_t size) const;
+    TCP_PUBSUB_EXPORT bool send(const char* data, size_t size) const;
 
     /**
      * @brief Send data to all subscribers
