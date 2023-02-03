@@ -6,7 +6,7 @@
 #include <string>
 #include <memory>
 
-#include <stdint.h>
+#include <cstdint>
 
 #include "tcp_pubsub_logger.h"
 
@@ -49,12 +49,12 @@ namespace tcp_pubsub
     TCP_PUBSUB_EXPORT ~Executor();
 
     // Copy
-    TCP_PUBSUB_EXPORT Executor(const Executor&)            = delete;
-    TCP_PUBSUB_EXPORT Executor& operator=(const Executor&) = delete;
+    Executor(const Executor&)            = delete;
+    Executor& operator=(const Executor&) = delete;
 
     // Move
-    TCP_PUBSUB_EXPORT Executor& operator=(Executor&&)      = default;
-    TCP_PUBSUB_EXPORT Executor(Executor&&)                 = default;
+    TCP_PUBSUB_EXPORT Executor& operator=(Executor&&) noexcept;
+    TCP_PUBSUB_EXPORT Executor(Executor&&) noexcept;
 
   private:
     friend ::tcp_pubsub::Publisher_Impl;

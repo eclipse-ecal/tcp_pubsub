@@ -5,7 +5,7 @@
 
 #include <memory>
 #include <string>
-#include <stdint.h>
+#include <cstdint>
 
 #include <tcp_pubsub/tcp_pubsub_version.h>
 #include <tcp_pubsub/tcp_pubsub_export.h>

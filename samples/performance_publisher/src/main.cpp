@@ -4,7 +4,6 @@
 #include <iostream>
 #include <thread>
 #include <atomic>
-#include <thread>
 #include <vector>
 
 #include <tcp_pubsub/executor.h>
@@ -16,18 +15,18 @@ void printLog()
 {
   for (;;)
   {
-    int messages_sent_temp = messages_sent.exchange(0);
+    const int messages_sent_temp = messages_sent.exchange(0);
     std::cout << "Sent " << messages_sent_temp << " messages in 1 second" << std::endl;
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 }
 
 int main() {
-  std::shared_ptr<tcp_pubsub::Executor> executor = std::make_shared<tcp_pubsub::Executor>(6, tcp_pubsub::logger::logger_no_verbose_debug);
+  const std::shared_ptr<tcp_pubsub::Executor> executor = std::make_shared<tcp_pubsub::Executor>(6, tcp_pubsub::logger::logger_no_verbose_debug);
 
-  tcp_pubsub::Publisher publisher(executor, "0.0.0.0", 1588);
+  const tcp_pubsub::Publisher publisher(executor, "0.0.0.0", 1588);
 
-  std::thread print_thread(printLog);
+  const std::thread print_thread(printLog);
 
   std::vector<char> big_buffer;
   big_buffer.resize(16 * 1024 * 1024);
@@ -54,7 +53,7 @@ int main() {
     {
       auto now  = std::chrono::steady_clock::now();
 
-      publisher.send(&big_buffer[0], big_buffer.size());
+      publisher.send(big_buffer.data(), big_buffer.size());
       messages_sent++;
     }
   }

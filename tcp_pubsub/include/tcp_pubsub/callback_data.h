@@ -6,7 +6,7 @@
 #include <vector>
 #include <chrono>
 #include <memory>
-#include <stdint.h>
+#include <cstdint>
 
 #include <tcp_pubsub/tcp_pubsub_version.h>
 

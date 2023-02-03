@@ -40,7 +40,7 @@ namespace tcp_pubsub
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     std::stringstream ss;
     ss << std::this_thread::get_id();
-    std::string thread_id = ss.str();
+    const std::string thread_id = ss.str();
     log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Deleting from thread " + thread_id + "...");
 #endif
 
@@ -65,7 +65,7 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::resolveEndpoint()
   {
-    asio::ip::tcp::resolver::query query(address_, std::to_string(port_));
+    const asio::ip::tcp::resolver::query query(address_, std::to_string(port_));
 
     if (canceled_)
     {
@@ -161,7 +161,7 @@ namespace tcp_pubsub
     log_(logger::LogLevel::Debug,  "SubscriberSession " + endpointToString() + ": Sending ProtocolHandshakeRequest.");
 #endif
 
-    std::shared_ptr<std::vector<char>> buffer = std::make_shared<std::vector<char>>();
+    const std::shared_ptr<std::vector<char>> buffer = std::make_shared<std::vector<char>>();
     buffer->resize(sizeof(TcpHeader) + sizeof(ProtocolHandshakeMessage));
 
     TcpHeader* header   = reinterpret_cast<TcpHeader*>(buffer->data());
@@ -240,7 +240,7 @@ namespace tcp_pubsub
     log_(logger::LogLevel::DebugVerbose,  "SubscriberSession " + endpointToString() + ": Waiting for data...");
 #endif
 
-    std::shared_ptr<TcpHeader> header = std::make_shared<TcpHeader>();
+    const std::shared_ptr<TcpHeader> header = std::make_shared<TcpHeader>();
 
     asio::async_read(data_socket_
                      , asio::buffer(&(header->header_size), sizeof(header->header_size))
@@ -354,7 +354,7 @@ namespace tcp_pubsub
     }
 
     // Get a buffer. This may be a used or a new one.
-    std::shared_ptr<std::vector<char>> data_buffer = get_buffer_handler_();
+    const std::shared_ptr<std::vector<char>> data_buffer = get_buffer_handler_();
 
     if (data_buffer->capacity() < le64toh(header->data_size))
     {
@@ -383,7 +383,7 @@ namespace tcp_pubsub
                                       if (header->type == MessageContentType::ProtocolHandshake)
                                       {
                                         ProtocolHandshakeMessage handshake_message;
-                                        size_t bytes_to_copy = std::min(data_buffer->size(), sizeof(ProtocolHandshakeMessage));
+                                        const size_t bytes_to_copy = std::min(data_buffer->size(), sizeof(ProtocolHandshakeMessage));
                                         std::memcpy(&handshake_message, data_buffer->data(), bytes_to_copy);
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
                                         me->log_(logger::LogLevel::Debug,  "SubscriberSession " + me->endpointToString() + ": Received Handshake message. Using Protocol version v" + std::to_string(handshake_message.protocol_version));
@@ -457,7 +457,7 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::cancel()
   {
-    bool already_canceled = canceled_.exchange(true);
+    const bool already_canceled = canceled_.exchange(true);
 
     if (already_canceled) return;
 
@@ -512,10 +512,7 @@ namespace tcp_pubsub
     // If we can get the remote endpoint, we consider the socket as connected.
     // Otherwise it is not connected.
 
-    if (ec)
-      return false;
-    else
-      return true;
+    return !static_cast<bool>(ec);
   }
 
   std::string SubscriberSession_Impl::remoteEndpointToString() const

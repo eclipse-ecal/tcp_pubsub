@@ -27,7 +27,7 @@ namespace tcp_pubsub
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     std::stringstream ss;
     ss << std::this_thread::get_id();
-    std::string thread_id = ss.str();
+    const std::string thread_id = ss.str();
     log_(logger::LogLevel::DebugVerbose, "Subscriber " + subscriberIdString() + ": Deleting from thread " + thread_id + "...");
 #endif
 
@@ -46,20 +46,20 @@ namespace tcp_pubsub
 #endif
 
     // Function for getting a free buffer
-    std::function<std::shared_ptr<std::vector<char>>()> get_free_buffer_handler
+    const std::function<std::shared_ptr<std::vector<char>>()> get_free_buffer_handler
             = [me = shared_from_this()]() -> std::shared_ptr<std::vector<char>>
               {
                 return me->buffer_pool_.allocate();
               };
 
     // Function for cleaning up
-    std::function<void(const std::shared_ptr<SubscriberSession_Impl>&)> subscriber_session_closed_handler
+    const std::function<void(const std::shared_ptr<SubscriberSession_Impl>&)> subscriber_session_closed_handler
             = [me = shared_from_this()](const std::shared_ptr<SubscriberSession_Impl>& subscriber_session_impl) -> void
               {
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
                   me->log_(logger::LogLevel::Debug, "Subscriber " + me->subscriberIdString() + ": Removing session " + subscriber_session_impl->remoteEndpointToString() + ".");
 #endif
-                std::lock_guard<std::mutex>session_list_lock(me->session_list_mutex_);
+                const std::lock_guard<std::mutex>session_list_lock(me->session_list_mutex_);
 
                 // Look up the current subscriber session and remove it from the list
                 auto session_it = std::find_if(me->session_list_.begin()
@@ -95,7 +95,7 @@ namespace tcp_pubsub
     setCallbackToSession(subscriber_session);
 
     {
-      std::lock_guard<std::mutex> session_list_lock(session_list_mutex_);
+      const std::lock_guard<std::mutex> session_list_lock(session_list_mutex_);
       session_list_.push_back(subscriber_session);
       subscriber_session->subscriber_session_impl_->start();
     }
@@ -105,7 +105,7 @@ namespace tcp_pubsub
 
   std::vector<std::shared_ptr<SubscriberSession>> Subscriber_Impl::getSessions() const
   {
-    std::lock_guard<std::mutex> session_list_lock(session_list_mutex_);
+    const std::lock_guard<std::mutex> session_list_lock(session_list_mutex_);
     return session_list_;
   }
 
@@ -146,7 +146,7 @@ namespace tcp_pubsub
       user_callback_is_synchronous_ = synchronous_execution;
 
       // Clean the last callback data, so any buffer in there is freed
-      std::unique_lock<std::mutex> callback_lock(last_callback_data_mutex_);
+      const std::unique_lock<std::mutex> callback_lock(last_callback_data_mutex_);
       last_callback_data_ = CallbackData();
     }
     if (!synchronous_execution)
@@ -186,7 +186,7 @@ namespace tcp_pubsub
     //std::lock_guard<std::mutex> callback_lock(callback_mutex_);
     if (renew_synchronous_callbacks)
     {
-      std::lock_guard<std::mutex> session_list_lock(session_list_mutex_);
+      const std::lock_guard<std::mutex> session_list_lock(session_list_mutex_);
       for (const auto& session : session_list_)
       {
         setCallbackToSession(session);
@@ -204,7 +204,7 @@ namespace tcp_pubsub
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
                   me->log_(logger::LogLevel::DebugVerbose, "Subscriber " + me->subscriberIdString() + ": Executing synchronous callback");
 #endif            
-                  std::lock_guard<std::mutex> callback_lock(me->last_callback_data_mutex_);
+                  const std::lock_guard<std::mutex> callback_lock(me->last_callback_data_mutex_);
                   if (me->user_callback_is_synchronous_)
                   {
                     CallbackData callback_data;
@@ -221,7 +221,7 @@ namespace tcp_pubsub
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
                   me->log_(logger::LogLevel::DebugVerbose, "Subscriber " + me->subscriberIdString() + ": Storing data for  asynchronous callback");
 #endif            
-                  std::lock_guard<std::mutex> callback_lock(me->last_callback_data_mutex_);
+                  const std::lock_guard<std::mutex> callback_lock(me->last_callback_data_mutex_);
                   if (!me->user_callback_is_synchronous_)
                   {
                     me->last_callback_data_.buffer_           = buffer;
@@ -239,7 +239,7 @@ namespace tcp_pubsub
 #endif
 
     {
-      std::lock_guard<std::mutex> session_list_lock(session_list_mutex_);
+      const std::lock_guard<std::mutex> session_list_lock(session_list_mutex_);
       for (const auto& session : session_list_)
       {
         session->cancel();

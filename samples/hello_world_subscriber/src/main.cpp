@@ -9,15 +9,15 @@
 
 int main()
 {
-  std::shared_ptr<tcp_pubsub::Executor> executor = std::make_shared<tcp_pubsub::Executor>(4);
+  const std::shared_ptr<tcp_pubsub::Executor> executor = std::make_shared<tcp_pubsub::Executor>(4);
 
   tcp_pubsub::Subscriber hello_world_subscriber(executor);
   auto session1 = hello_world_subscriber.addSession("127.0.0.1", 1588);
 
-  std::function<void(const tcp_pubsub::CallbackData& callback_data)>callback_function
+  const std::function<void(const tcp_pubsub::CallbackData& callback_data)>callback_function
         = [](const tcp_pubsub::CallbackData& callback_data) -> void
           {
-            std::string temp_string_representation(callback_data.buffer_->data(), callback_data.buffer_->size());
+            const std::string temp_string_representation(callback_data.buffer_->data(), callback_data.buffer_->size());
             std::cout << "Received playload: " << temp_string_representation << std::endl;
           };
 

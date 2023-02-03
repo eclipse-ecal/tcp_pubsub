@@ -33,8 +33,8 @@ namespace tcp_pubsub
   bool Publisher::send(const char* const data, size_t size) const
     { return this->send({ {data, size} }); }
 
-  bool Publisher::send(const std::vector<std::pair<const char* const, const size_t>>& payloads) const
-    { return publisher_impl_->send(payloads); }
+  bool Publisher::send(const std::vector<std::pair<const char* const, const size_t>>& buffers) const
+    { return publisher_impl_->send(buffers); }
 
   void Publisher::cancel()
     { publisher_impl_->cancel(); }
