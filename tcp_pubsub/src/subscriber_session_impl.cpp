@@ -97,56 +97,52 @@ namespace tcp_pubsub
       return;
     }
 
-    auto endpoint_to_connect_to = resolved_endpoints->endpoint(); // Default to first endpoint
-    for (auto it = resolved_endpoints; it != asio::ip::tcp::resolver::iterator(); it++)
+    // Convert the resolved_endpoints iterator to an endpoint sequence
+    // (i.e. a vector of endpoints)
+    auto endpoint_sequence = std::make_shared<std::vector<asio::ip::tcp::endpoint>>();
+    for (auto it = resolved_endpoints; it != asio::ip::tcp::resolver::iterator(); ++it)
     {
-      if (it->endpoint().address().is_loopback())
-      {
-        // If we find a loopback endpoint we use that one.
-        endpoint_to_connect_to = it->endpoint();
-        break;
-      }
+      endpoint_sequence->push_back(*it);
     }
 
-    endpoint_ = endpoint_to_connect_to;
-
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
-    log_(logger::LogLevel::Debug, "SubscriberSession " + endpointToString() + ": Trigger async connect to endpoint.");
+    log_(logger::LogLevel::Debug, "SubscriberSession " + localEndpointToString() + ": Trigger async connect to endpoint " + address_ + ":" + std::to_string(port_));
 #endif // 
 
-    data_socket_.async_connect(endpoint_to_connect_to
-                            , [me = shared_from_this()](asio::error_code ec)
-                              {
-                                if (ec)
-                                {
-                                  me->log_(logger::LogLevel::Warning, "SubscriberSession " + me->endpointToString() + ": Failed connecting to publisher: " + ec.message());
-                                  me->connectionFailedHandler();
-                                  return;
-                                }
-                                else
-                                {
+    asio::async_connect(data_socket_
+                        , *endpoint_sequence
+                        , [me = shared_from_this()](asio::error_code ec, const asio::ip::tcp::endpoint& /*endpoint*/)
+                          {
+                            if (ec)
+                            {
+                              me->log_(logger::LogLevel::Warning, "SubscriberSession " + me->localEndpointToString() + ": Failed connecting to publisher " + me->address_ + ":" + std::to_string(me->port_) + ": " + ec.message());
+                              me->connectionFailedHandler();
+                              return;
+                            }
+                            else
+                            {
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
-                                  me->log_(logger::LogLevel::Debug, "SubscriberSession " + me->endpointToString() + ": Successfully connected to publisher " + me->endpointToString());
+                              me->log_(logger::LogLevel::Debug, "SubscriberSession " + me->endpointToString() + ": Successfully connected to publisher " + me->address_ + ":" + std::to_string(me->port_));
 #endif
 
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
-                                  me->log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + me->endpointToString() + ": Setting tcp::no_delay option.");
+                              me->log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + me->endpointToString() + ": Setting tcp::no_delay option.");
 #endif
-                                  // Disable Nagle's algorithm. Nagles Algorithm will otherwise cause the
-                                  // Socket to wait for more data, if it encounters a frame that can still
-                                  // fit more data. Obviously, this is an awfull default behaviour, if we
-                                  // want to transmit our data in a timely fashion.
-                                  {
-                                    asio::error_code nodelay_ec;
-                                    me->data_socket_.set_option(asio::ip::tcp::no_delay(true), nodelay_ec);
-                                    if (nodelay_ec) me->log_(logger::LogLevel::Warning, "SubscriberSession " + me->endpointToString() + ": Failed setting tcp::no_delay option. The performance may suffer.");
-                                  }
+                              // Disable Nagle's algorithm. Nagles Algorithm will otherwise cause the
+                              // Socket to wait for more data, if it encounters a frame that can still
+                              // fit more data. Obviously, this is an awfull default behaviour, if we
+                              // want to transmit our data in a timely fashion.
+                              {
+                                asio::error_code nodelay_ec;
+                                me->data_socket_.set_option(asio::ip::tcp::no_delay(true), nodelay_ec);
+                                if (nodelay_ec) me->log_(logger::LogLevel::Warning, "SubscriberSession " + me->endpointToString() + ": Failed setting tcp::no_delay option. The performance may suffer.");
+                              }
 
-                                  // Start reading a package by reading the header length. Everything will
-                                  // unfold from there automatically.
-                                  me->sendProtokolHandshakeRequest();
-                                }
-                              });
+                              // Start reading a package by reading the header length. Everything will
+                              // unfold from there automatically.
+                              me->sendProtokolHandshakeRequest();
+                            }
+                          });
   }
 
   void SubscriberSession_Impl::sendProtokolHandshakeRequest()
