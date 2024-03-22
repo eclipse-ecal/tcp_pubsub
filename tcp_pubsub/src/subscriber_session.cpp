@@ -1,6 +1,9 @@
 // Copyright (c) Continental. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for details.
 
+#include <cstdint>
+#include <memory>
+#include <string>
 #include <tcp_pubsub/subscriber_session.h>
 
 #include "subscriber_session_impl.h"

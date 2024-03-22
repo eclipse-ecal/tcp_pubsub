@@ -3,11 +3,15 @@
 
 #pragma once
 
-#include <memory>
-#include <string>
-#include <mutex>
-#include <vector>
+#include <atomic>
+#include <condition_variable>
+#include <cstdint>
 #include <functional>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
 
 #include <asio.hpp>
 #include <recycle/shared_pool.hpp>
@@ -16,12 +20,11 @@
 #include <tcp_pubsub/subscriber_session.h>
 #include <tcp_pubsub/callback_data.h>
 
-#include "tcp_pubsub_logger_abstraction.h"
+#include "tcp_pubsub/tcp_pubsub_logger.h"
 
-namespace tcp_pubsub
+namespace tcp_pubsub {
+class Subscriber_Impl : public std::enable_shared_from_this<Subscriber_Impl>
 {
-  class Subscriber_Impl : public std::enable_shared_from_this<Subscriber_Impl>
-  {
   ////////////////////////////////////////////////
   // Constructor & Destructor
   ////////////////////////////////////////////////
@@ -90,4 +93,4 @@ namespace tcp_pubsub
     // Log function
     const tcp_pubsub::logger::logger_t log_;
   };
-}
+  } // namespace tcp_pubsub

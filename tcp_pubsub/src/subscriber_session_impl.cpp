@@ -6,6 +6,20 @@
 #include "portable_endian.h"
 
 #include "protocol_handshake_message.h"
+#include "tcp_header.h"
+#include "tcp_pubsub/tcp_pubsub_logger.h"
+#include "tcp_pubsub_logger_abstraction.h"
+#include <algorithm>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <functional>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <thread>
+#include <vector>
 
 namespace tcp_pubsub
 {

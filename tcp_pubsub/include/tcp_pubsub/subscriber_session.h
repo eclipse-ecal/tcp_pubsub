@@ -7,7 +7,7 @@
 #include <string>
 #include <cstdint>
 
-#include <tcp_pubsub/tcp_pubsub_version.h>
+#include <tcp_pubsub/tcp_pubsub_version.h> // IWYU pragma: keep
 #include <tcp_pubsub/tcp_pubsub_export.h>
 
 namespace tcp_pubsub

@@ -3,15 +3,14 @@
 
 #pragma once
 
-#include <cstdint>
-#include <thread>
-#include <string>
-#include <vector>
+#include <cstddef>
 #include <memory>
+#include <thread>
+#include <vector>
 
-#include <asio.hpp>
+#include <asio.hpp> // IWYU pragma: keep
 
-#include "tcp_pubsub_logger_abstraction.h"
+#include "tcp_pubsub/tcp_pubsub_logger.h"
 
 namespace tcp_pubsub
 {

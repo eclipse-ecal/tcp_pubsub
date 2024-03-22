@@ -1,12 +1,18 @@
 // Copyright (c) Continental. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for details.
 
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <string>
 #include <tcp_pubsub/subscriber.h>
 
 #include <tcp_pubsub/executor.h>
+#include <vector>
 
 #include "subscriber_impl.h"
-#include "executor_impl.h"
+#include "tcp_pubsub/callback_data.h"
+#include "tcp_pubsub/subscriber_session.h"
 
 namespace tcp_pubsub
 {

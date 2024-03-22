@@ -3,13 +3,18 @@
 
 #pragma once
 
+#include <atomic>
+#include <cstdint>
 #include <functional>
-#include <deque>
 
 #include <asio.hpp>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <vector>
 
 #include "tcp_header.h"
-#include "tcp_pubsub_logger_abstraction.h"
+#include "tcp_pubsub/tcp_pubsub_logger.h"
 
 namespace tcp_pubsub
 {

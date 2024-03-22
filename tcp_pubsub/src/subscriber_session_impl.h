@@ -3,20 +3,21 @@
 
 #pragma once
 
+#include <atomic>
+#include <cstdint>
+#include <functional>
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
-#include <functional>
 
 #include <asio.hpp>
 
-#include "tcp_pubsub_logger_abstraction.h"
 #include "tcp_header.h"
+#include "tcp_pubsub/tcp_pubsub_logger.h"
 
-namespace tcp_pubsub
+namespace tcp_pubsub {
+class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSession_Impl>
 {
-  class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSession_Impl>
-  {
   //////////////////////////////////////////////
   /// Constructor & Destructor
   //////////////////////////////////////////////
@@ -108,4 +109,4 @@ namespace tcp_pubsub
     // Logger
     const tcp_pubsub::logger::logger_t log_;
   };
-}
+  } // namespace tcp_pubsub
