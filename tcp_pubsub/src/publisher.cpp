@@ -15,7 +15,7 @@ namespace tcp_pubsub
   }
 
   Publisher::Publisher(const std::shared_ptr<Executor>& executor, uint16_t port)
-    : Publisher(executor, "0.0.0.0", port)
+    : Publisher(executor, "::", port)
   {}
 
   Publisher::~Publisher()
