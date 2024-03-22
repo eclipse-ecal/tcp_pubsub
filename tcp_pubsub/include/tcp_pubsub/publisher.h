@@ -63,8 +63,11 @@ namespace tcp_pubsub
      *              used for logging.
      * 
      * @param[in] address
-     *              The IP address to bind to. When setting this to "0.0.0.0"
-     *              connections from any IP are accepted.
+     *              The IP address to bind to. When setting this to "::",
+     *              connections from any IPv6 & IPv4 are accepted.
+     *              Tip: use an IPv6 IP here to accept both IPv4 and IPv6
+     *              addresses. If "0.0.0.0" is used, the connections will be
+     *              limited to IPv4 connections.
      * 
      * @param[in] port
      *              The port to accept connections from. When setting to "0",
@@ -87,8 +90,9 @@ namespace tcp_pubsub
      *                port, isRunning() will return false.
      *
      * When the port can be opened, the Publisher will immediatelly accept
-     * connections from Subscribers. Whether the Publisher is running can be
-     * checked with isRunning().
+     * connections from Subscribers. It is bound to "::", meaning that it will
+     * accept connections from any IPv6 and IPv4 connection. Whether the
+     * Publisher is running can be checked with isRunning().
      *
      * @param[in] executor
      *              The (global) executor that shall execute the workload and be
