@@ -4,9 +4,25 @@
 #include "publisher_impl.h"
 
 #include "tcp_header.h"
+#include "publisher_session.h"
 #include "portable_endian.h"
 
 #include "executor_impl.h"
+#include "tcp_pubsub/tcp_pubsub_logger.h"
+#include "tcp_pubsub_logger_abstraction.h"
+#include <cstdint>
+#include <cstring>
+#include <ios>
+#include <tcp_pubsub/executor.h>
+
+#include <cstddef>
+#include <memory>
+#include <mutex>
+#include <sstream>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
 
 namespace tcp_pubsub
 {

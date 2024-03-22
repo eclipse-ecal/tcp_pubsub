@@ -19,11 +19,11 @@
 
 #if defined(__linux__) || defined(__CYGWIN__)
 
-#	include <endian.h>
+#	include <endian.h> // IWYU pragma: export
 
 #elif defined(__APPLE__)
 
-#	include <libkern/OSByteOrder.h>
+#	include <libkern/OSByteOrder.h> // IWYU pragma: export
 
 #	define htobe16(x) OSSwapHostToBigInt16(x)
 #	define htole16(x) OSSwapHostToLittleInt16(x)
@@ -47,7 +47,7 @@
 
 #elif defined(__OpenBSD__)
 
-#	include <endian.h>
+#	include <endian.h> // IWYU pragma: export
 
 #	define __BYTE_ORDER    BYTE_ORDER
 #	define __BIG_ENDIAN    BIG_ENDIAN
@@ -56,7 +56,7 @@
 
 #elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__DragonFly__)
 
-#	include <sys/endian.h>
+#	include <sys/endian.h> // IWYU pragma: export
 
 #	define be16toh(x) betoh16(x)
 #	define le16toh(x) letoh16(x)
@@ -69,9 +69,9 @@
 
 #elif defined(__WINDOWS__)
 
-#	include <winsock2.h>
+#	include <winsock2.h> // IWYU pragma: export
 #	ifdef __GNUC__
-#		include <sys/param.h>
+#		include <sys/param.h> // IWYU pragma: export
 #	endif
 
 #	if BYTE_ORDER == LITTLE_ENDIAN
@@ -122,8 +122,8 @@
 
 #elif defined(__QNXNTO__)
 
-#	include <gulliver.h>
-#	include <net/netbyte.h>
+#	include <gulliver.h> // IWYU pragma: export
+#	include <net/netbyte.h> // IWYU pragma: export
 
 #else
 

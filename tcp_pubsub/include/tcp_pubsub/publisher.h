@@ -3,16 +3,18 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
+#include <chrono>
 #include <memory>
 #include <string>
-#include <chrono>
+#include <utility>
 #include <vector>
 
 #include "executor.h"
 
-#include <tcp_pubsub/tcp_pubsub_version.h>
+#include <tcp_pubsub/tcp_pubsub_version.h> // IWYU pragma: keep
 #include <tcp_pubsub/tcp_pubsub_export.h>
 
 namespace tcp_pubsub

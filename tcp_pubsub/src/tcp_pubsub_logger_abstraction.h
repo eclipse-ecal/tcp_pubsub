@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include <tcp_pubsub/tcp_pubsub_logger.h>
-
 //
 // If DEBUG_VERBOSE is not set by the user, we enable it when compiling in
 // Debug mode. The user can still omit those verbose messages by setting a

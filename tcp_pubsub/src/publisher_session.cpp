@@ -3,12 +3,25 @@
 
 #include "publisher_session.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <functional>
 #include <iostream>
+#include <memory>
+#include <mutex>
+#include <sstream>
+#include <string>
+#include <thread>
+#include <vector>
 
 #include "tcp_header.h"
 #include "portable_endian.h"
 
 #include "protocol_handshake_message.h"
+#include "tcp_pubsub/tcp_pubsub_logger.h"
+#include "tcp_pubsub_logger_abstraction.h"
 
 namespace tcp_pubsub
 {

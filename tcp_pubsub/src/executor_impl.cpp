@@ -2,6 +2,13 @@
 // Licensed under the MIT license. See LICENSE file in the project root for details.
 
 #include "executor_impl.h"
+#include "tcp_pubsub/tcp_pubsub_logger.h"
+#include "tcp_pubsub_logger_abstraction.h"
+#include <cstddef>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <thread>
 
 namespace tcp_pubsub
 {

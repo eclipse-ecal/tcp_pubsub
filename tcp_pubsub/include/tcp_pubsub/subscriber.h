@@ -5,16 +5,18 @@
 
 #include <cstdint>
 
-#include <memory>
 #include <chrono>
+#include <functional>
+#include <memory>
 #include <string>
 
 #include "executor.h"
 #include "subscriber_session.h"
 #include "callback_data.h"
 
-#include <tcp_pubsub/tcp_pubsub_version.h>
 #include <tcp_pubsub/tcp_pubsub_export.h>
+#include <tcp_pubsub/tcp_pubsub_version.h> // IWYU pragma: keep
+#include <vector>
 
 namespace tcp_pubsub
 {
