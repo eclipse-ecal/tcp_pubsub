@@ -172,8 +172,15 @@ configure_package_config_file(
   INSTALL_DESTINATION ${TCP_PUBSUB_INSTALL_CMAKE_DIR}
   PATH_VARS TCP_PUBSUB_INSTALL_CMAKE_DIR
 )
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/cmake_/tcp_pubsubConfigVersion.cmake"
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
 install(
-  FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake_/tcp_pubsubConfig.cmake"
+  FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake_/tcp_pubsubConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake_/tcp_pubsubConfigVersion.cmake"
   DESTINATION ${TCP_PUBSUB_INSTALL_CMAKE_DIR}
   COMPONENT tcp_pubsub_dev
 )
