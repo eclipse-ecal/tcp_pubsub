@@ -65,11 +65,11 @@ jobs:
                  -G "Visual Studio 16 2019" ^
                  -A ${{ matrix.build_arch }} ^
                  -T ${{ env.VS_TOOLSET }} ^
-                 -DTCP_PUBSUB_BUILD_SAMPLES=ON \
-                 -DTCP_PUBSUB_BUILD_TESTS=ON \
-                 -DTCP_PUBSUB_USE_BUILTIN_ASIO=ON \
-                 -DTCP_PUBSUB_USE_BUILTIN_RECYCLE=ON \
-                 -DTCP_PUBSUB_USE_BUILTIN_GTEST=ON \
+                 -DTCP_PUBSUB_BUILD_SAMPLES=ON ^
+                 -DTCP_PUBSUB_BUILD_TESTS=ON ^
+                 -DTCP_PUBSUB_USE_BUILTIN_ASIO=ON ^
+                 -DTCP_PUBSUB_USE_BUILTIN_RECYCLE=ON ^
+                 -DTCP_PUBSUB_USE_BUILTIN_GTEST=ON ^
                  -DTCP_PUBSUB_LIBRARY_TYPE=${{env.tcp_pubsub_library_type}} ^
                  -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}}
 
