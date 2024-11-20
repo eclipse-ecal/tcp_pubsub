@@ -31,7 +31,7 @@ option(TCP_PUBSUB_USE_BUILTIN_RECYCLE
 
 option(TCP_PUBSUB_BUILD_TESTS
        "Build the tcp_pubsub tests. Requires Gtest::GTest to be findable by CMake."
-       ON)
+       OFF)
 
 cmake_dependent_option(TCP_PUBSUB_USE_BUILTIN_GTEST
        "Use the builtin GoogleTest submodule. Only needed if TCP_PUBSUB_BUILD_TESTS is ON. If set to OFF, GoogleTest must be available from somewhere else (e.g. system libs)."
