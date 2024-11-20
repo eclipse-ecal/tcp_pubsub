@@ -91,6 +91,20 @@ int main()
 }
 ```
 
+## CMake Options
+
+You can set the following CMake Options to control how tcp_pubsub is built:
+
+| Option                             | Type  | Default | Explanation                                                                                                                                         |
+|------------------------------------|-------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `TCP_PUBSUB_BUILD_SAMPLES`         | `BOOL`| `ON`    | Build project samples.                                                                                                                              |
+| `TCP_PUBSUB_BUILD_ECAL_SAMPLES`    | `BOOL`| `OFF`   | Build eCAL-based project samples. Requires eCAL to be findable by CMake.                                                                            |
+| `TCP_PUBSUB_USE_BUILTIN_ASIO`      | `BOOL`| `ON`    | Use the builtin asio submodule. If set to `OFF`, asio must be available from somewhere else (e.g. system libs).                                     |
+| `TCP_PUBSUB_USE_BUILTIN_RECYCLE`   | `BOOL`| `ON`    | Use the builtin `steinwurf::recycle` submodule. If set to `OFF`, recycle must be available from somewhere else (e.g. system libs).                  |
+| `TCP_PUBSUB_BUILD_TESTS`           | `BOOL`| `OFF`   | Build the tcp_pubsub tests. Requires Gtest::GTest to be findable by CMake. |
+| `TCP_PUBSUB_USE_BUILTIN_GTEST`     | `BOOL`| `ON` (if building tests) | Use the builtin GoogleTest submodule. Only needed if `TCP_PUBSUB_BUILD_TESTS` is `ON`. If set to `OFF`, GoogleTest must be available from elsewhere. |
+| `TCP_PUBSUB_LIBRARY_TYPE`          | `STRING` |             | Controls the library type of tcp_pubsub by injecting the string into the `add_library` call. Can be set to STATIC / SHARED / OBJECT. If set, this will override the regular `BUILD_SHARED_LIBS` CMake option. If not set, CMake will use the default setting, which is controlled by `BUILD_SHARED_LIBS`.                |
+
 ## How to checkout and build
 
 There are several examples provided that aim to show you the functionality.

@@ -1,0 +1,1 @@
+set(recycle_FOUND TRUE CACHE BOOL "Found steinwurf::recycle" FORCE)
