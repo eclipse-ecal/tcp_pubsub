@@ -6,6 +6,8 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <string>
+#include <thread>
 
 #include <tcp_pubsub/executor.h>
 #include <tcp_pubsub/publisher.h>
