@@ -48,7 +48,7 @@ set(sources
     src/tcp_pubsub_logger_abstraction.h
 )
 
-add_library (${PROJECT_NAME}
+add_library (${PROJECT_NAME} ${TCP_PUBSUB_LIBRARY_TYPE}
     ${includes}
     ${sources}
 )
