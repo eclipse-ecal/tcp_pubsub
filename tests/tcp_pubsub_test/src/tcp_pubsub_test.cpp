@@ -50,7 +50,8 @@ TEST(tcp_pubsub, basic_test)
   // Wait up to 1 second for the subscriber to connect
   for (int i = 0; i < 10; ++i)
   {
-    if (hello_world_subscriber.getSessions().at(0)->isConnected())
+    if (hello_world_subscriber.getSessions().at(0)->isConnected()
+      && hello_world_publisher.getSubscriberCount() >= 1)
     {
       break;
     }
@@ -123,7 +124,8 @@ TEST(tcp_pubsub, large_message_test)
   // Wait up to 1 second for the subscriber to connect
   for (int i = 0; i < 10; ++i)
   {
-    if (hello_world_subscriber.getSessions().at(0)->isConnected())
+    if (hello_world_subscriber.getSessions().at(0)->isConnected()
+      && hello_world_publisher.getSubscriberCount() >= 1)
     {
       break;
     }
@@ -190,7 +192,10 @@ TEST(tcp_pubsub, multiple_publishers_test)
   // Wait up to 1 second for the subscriber to connect
   for (int i = 0; i < 10; ++i)
   {
-    if (hello_world_subscriber.getSessions().at(0)->isConnected() && hello_world_subscriber.getSessions().at(1)->isConnected())
+    if (hello_world_subscriber.getSessions().at(0)->isConnected()
+      && hello_world_subscriber.getSessions().at(1)->isConnected()
+      && hello_world_publisher1.getSubscriberCount() >= 1
+      && hello_world_publisher2.getSubscriberCount() >= 1)
     {
       break;
     }
@@ -277,7 +282,9 @@ TEST(tcp_pubsub, multiple_subscribers_test)
   // Wait up to 1 second for the subscriber to connect
   for (int i = 0; i < 10; ++i)
   {
-    if (hello_world_subscriber1.getSessions().at(0)->isConnected() && hello_world_subscriber2.getSessions().at(0)->isConnected())
+    if (hello_world_subscriber1.getSessions().at(0)->isConnected()
+      && hello_world_subscriber2.getSessions().at(0)->isConnected()
+      && hello_world_publisher.getSubscriberCount() >= 2)
     {
       break;
     }
