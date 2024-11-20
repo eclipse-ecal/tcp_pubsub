@@ -60,7 +60,7 @@ jobs:
                  -DTCP_PUBSUB_BUILD_TESTS=ON \
                  -DTCP_PUBSUB_USE_BUILTIN_ASIO=ON \
                  -DTCP_PUBSUB_USE_BUILTIN_RECYCLE=ON \
-                 -TCP_PUBSUB_USE_BUILTIN_GTEST=ON \
+                 -DTCP_PUBSUB_USE_BUILTIN_GTEST=ON \
                  -DTCP_PUBSUB_LIBRARY_TYPE=${{env.tcp_pubsub_library_type}} \
                  -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
                  -DBUILD_SHARED_LIBS=${{ env.build_shared_libs }}
