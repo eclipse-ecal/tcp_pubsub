@@ -59,6 +59,7 @@ TEST(tcp_pubsub, basic_test)
 
   // Check that the subscriber is connected
   EXPECT_TRUE(hello_world_subscriber.getSessions().at(0)->isConnected());
+  EXPECT_EQ(hello_world_publisher.getSubscriberCount(), 1);
   
   // Publish "Hello World 1"
   {
@@ -131,6 +132,7 @@ TEST(tcp_pubsub, large_message_test)
 
   // Check that the subscriber is connected
   EXPECT_TRUE(hello_world_subscriber.getSessions().at(0)->isConnected());
+  EXPECT_EQ(hello_world_publisher.getSubscriberCount(), 1);
 
   // Create a large message consisting of random bytes
   std::string message;
@@ -198,6 +200,8 @@ TEST(tcp_pubsub, multiple_publishers_test)
   // Check that the subscriber is connected
   EXPECT_TRUE(hello_world_subscriber.getSessions().at(0)->isConnected());
   EXPECT_TRUE(hello_world_subscriber.getSessions().at(1)->isConnected());
+  EXPECT_EQ(hello_world_publisher1.getSubscriberCount(), 1);
+  EXPECT_EQ(hello_world_publisher2.getSubscriberCount(), 1);
 
   // Publish "Hello World 1"
   {
@@ -283,6 +287,7 @@ TEST(tcp_pubsub, multiple_subscribers_test)
   // Check that the subscriber is connected
   EXPECT_TRUE(hello_world_subscriber1.getSessions().at(0)->isConnected());
   EXPECT_TRUE(hello_world_subscriber2.getSessions().at(0)->isConnected());
+  EXPECT_EQ(hello_world_publisher.getSubscriberCount(), 2);
 
   // Publish "Hello World 1"
   {
