@@ -3,7 +3,7 @@ name: Windows
 on:
   push:
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -16,9 +16,10 @@ jobs:
   build-windows:
 
     strategy:
+      fail-fast: false
       matrix:
-        library_type: [static, shared]
-        build_arch:   [x64, win32]
+        library_type:  [static, shared, object]
+        build_arch:    [x64, win32]
 
     # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
     # You can convert this to a matrix build if you need cross-platform coverage.
@@ -31,13 +32,18 @@ jobs:
       run: |
         if ( '${{ matrix.library_type }}' -eq 'static' )
         {
-          echo "build_shared_libs=OFF"  >> "$Env:GITHUB_ENV"
-          echo "package_postfix=static" >> "$Env:GITHUB_ENV"
+          echo "tcp_pubsub_library_type=STATIC" >> "$Env:GITHUB_ENV"
+          echo "package_postfix=static"      >> "$Env:GITHUB_ENV"
         }
-        else
+        elseif( '${{ matrix.library_type }}' -eq 'shared' )
         {
-          echo "build_shared_libs=ON"   >> "$Env:GITHUB_ENV"
-          echo "package_postfix=shared" >> "$Env:GITHUB_ENV"
+          echo "tcp_pubsub_library_type=SHARED" >> "$Env:GITHUB_ENV"
+          echo "package_postfix=shared"      >> "$Env:GITHUB_ENV"
+        }
+        elseif( '${{ matrix.library_type }}' -eq 'object' )
+        {
+          echo "tcp_pubsub_library_type=OBJECT" >> "$Env:GITHUB_ENV"
+          echo "package_postfix=object"      >> "$Env:GITHUB_ENV"
         }
 
     - name: Checkout
@@ -59,20 +65,39 @@ jobs:
                  -G "Visual Studio 16 2019" ^
                  -A ${{ matrix.build_arch }} ^
                  -T ${{ env.VS_TOOLSET }} ^
-                 -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}} ^
-                 -DBUILD_SHARED_LIBS=${{ env.build_shared_libs }}
+                 -DTCP_PUBSUB_BUILD_SAMPLES=ON \
+                 -DTCP_PUBSUB_BUILD_TESTS=ON \
+                 -DTCP_PUBSUB_USE_BUILTIN_ASIO=ON \
+                 -DTCP_PUBSUB_USE_BUILTIN_RECYCLE=ON \
+                 -DTCP_PUBSUB_USE_BUILTIN_GTEST=ON \
+                 -DTCP_PUBSUB_LIBRARY_TYPE=${{env.tcp_pubsub_library_type}} ^
+                 -DCMAKE_INSTALL_PREFIX=${{env.INSTALL_PREFIX}}
 
     - name: Build (Release)
       shell: cmd
       run: |
            cmake --build ${{github.workspace}}/_build --config Release --parallel
+    
+    - name: Install (Release)
+      shell: cmd
+      run: |
            cmake --build ${{github.workspace}}/_build --config Release --target INSTALL
+      if: ${{ matrix.library_type != 'object' }}
       
     - name: Build (Debug)
       shell: cmd
       run: |
            cmake --build ${{github.workspace}}/_build --config Debug --parallel
+           
+    - name: Install (Debug)
+      shell: cmd
+      run: |
            cmake --build ${{github.workspace}}/_build --config Debug --target INSTALL
+      if: ${{ matrix.library_type != 'object' }}
+
+    - name: Run Tests
+      run: ctest -C Release -V
+      working-directory: ${{ github.workspace }}/_build
            
     - name: Read Project Version from CMakeCache
       run: |
@@ -85,23 +110,27 @@ jobs:
       with:
         name: ${{ env.PROJECT_NAME }}-${{ env.CMAKE_PROJECT_VERSION }}-windows-${{ matrix.build_arch }}-${{ env.VS_NAME }}-${{ matrix.library_type }}
         path: ${{github.workspace}}/${{env.INSTALL_PREFIX}}
+      if: ${{ matrix.library_type != 'object' }}
 
     ############################################
     # Test if our binary can be linked against
     ############################################
 
     - name: CMake integration test
-      shell: cmd
+      shell: powershell
       run: |
-           cmake -B ${{github.workspace}}/samples/integration_test/_build ^
-                 -A ${{ matrix.build_arch }} ^
-                 -DCMAKE_PREFIX_PATH=${{github.workspace}}/${{env.INSTALL_PREFIX}}
+            cmake -B "${{github.workspace}}/samples/integration_test/_build" `
+                  -A ${{ matrix.build_arch }} `
+                  -DCMAKE_PREFIX_PATH="${{github.workspace}}/${{env.INSTALL_PREFIX}}"
+
       working-directory: ${{ github.workspace }}/samples/integration_test
+      if: ${{ matrix.library_type != 'object' }}
 
     - name: Compile integration test (Release)
       shell: cmd
       run: cmake --build ${{github.workspace}}/samples/integration_test/_build --config Release
       working-directory: ${{ github.workspace }}/samples/integration_test
+      if: ${{ matrix.library_type != 'object' }}
 
     - name: Run integration test (Release)
       run: |
@@ -111,11 +140,13 @@ jobs:
            }
            .\integration_test.exe
       working-directory: ${{ github.workspace }}/samples/integration_test/_build/Release
+      if: ${{ matrix.library_type != 'object' }}
 
     - name: Compile integration test (Debug)
       shell: cmd
       run: cmake --build ${{github.workspace}}/samples/integration_test/_build --config Debug
       working-directory: ${{ github.workspace }}/samples/integration_test
+      if: ${{ matrix.library_type != 'object' }}
 
     - name: Run integration test (Debug)
       run: |
@@ -125,3 +156,4 @@ jobs:
            }
            .\integration_test.exe
       working-directory: ${{ github.workspace }}/samples/integration_test/_build/Debug
+      if: ${{ matrix.library_type != 'object' }}
