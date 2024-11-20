@@ -14,6 +14,7 @@ jobs:
   build-ubuntu:
 
     strategy:
+      fail-fast: false
       matrix:
         library_type: [static, shared, object]
         os: [ubuntu-24.04, ubuntu-22.04, ubuntu-20.04]
