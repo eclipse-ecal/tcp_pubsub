@@ -14,9 +14,10 @@ jobs:
   build-ubuntu:
 
     strategy:
+      fail-fast: false
       matrix:
-        library_type: [static, shared]
-        os: [ubuntu-22.04, ubuntu-20.04]
+        library_type: [static, shared, object]
+        os: [ubuntu-24.04, ubuntu-22.04, ubuntu-20.04]
 
     # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
     # You can convert this to a matrix build if you need cross-platform coverage.
@@ -28,41 +29,19 @@ jobs:
     - name: Set Variables
       run: |
         if [[ '${{ matrix.library_type }}' == 'static' ]]; then
-          echo "build_shared_libs=OFF"  >> "$GITHUB_ENV"
-          echo "package_postfix=static" >> "$GITHUB_ENV"
-        else
-          echo "build_shared_libs=ON"   >> "$GITHUB_ENV"
-          echo "package_postfix=shared" >> "$GITHUB_ENV"
+          echo "build_shared_libs=OFF"        >> "$GITHUB_ENV"
+          echo "tcp_pubsub_library_type=STATIC"  >> "$GITHUB_ENV"
+          echo "package_postfix=static"       >> "$GITHUB_ENV"
+        elif [[ '${{ matrix.library_type }}' == 'shared' ]]; then
+          echo "build_shared_libs=ON"         >> "$GITHUB_ENV"
+          echo "tcp_pubsub_library_type=SHARED"  >> "$GITHUB_ENV"
+          echo "package_postfix=shared"       >> "$GITHUB_ENV"
+        elif [[ '${{ matrix.library_type }}' == 'object' ]]; then
+          echo "build_shared_libs=OFF"        >> "$GITHUB_ENV"
+          echo "tcp_pubsub_library_type=OBJECT"  >> "$GITHUB_ENV"
+          echo "package_postfix=object"       >> "$GITHUB_ENV"
         fi
-
-    - name: Getting closer to vanilla Ubuntu 18.04
-      run: |
-        if [[ '${{ matrix.os }}' == 'ubuntu-18.04' ]]; then
-
-          sudo apt-get -y update
         
-          echo "Creating directory for libgcc1"
-          mkdir libgcc1_deb
-          cd libgcc1_deb
-          pwd
-        
-          echo "Downloading bionic-security libgcc1"
-          apt-get download -t bionic-security libgcc1
-        
-          echo "Purging GH Actions toolchain PPA"
-          sudo apt-get -y install ppa-purge
-          sudo ppa-purge -y ubuntu-toolchain-r/test
-        
-          echo "installing libgcc1_deb"
-          sudo dpkg -i *
-        
-          echo "Installing g++"
-          sudo apt-get -y install g++
-        
-          cd ..
-        fi
-      shell: bash
-
     - name: Checkout
       uses: actions/checkout@v4
       with:
@@ -78,12 +57,22 @@ jobs:
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
            cmake -B ${{github.workspace}}/_build \
+                 -DTCP_PUBSUB_BUILD_SAMPLES=ON \
+                 -DTCP_PUBSUB_BUILD_TESTS=ON \
+                 -DTCP_PUBSUB_USE_BUILTIN_ASIO=ON \
+                 -DTCP_PUBSUB_USE_BUILTIN_RECYCLE=ON \
+                 -DTCP_PUBSUB_USE_BUILTIN_GTEST=ON \
+                 -DTCP_PUBSUB_LIBRARY_TYPE=${{env.tcp_pubsub_library_type}} \
                  -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
                  -DBUILD_SHARED_LIBS=${{ env.build_shared_libs }}
 
     - name: Build
       # Build your program with the given configuration
       run: cmake --build ${{github.workspace}}/_build --config ${{env.BUILD_TYPE}}
+
+    - name: Run Tests
+      run: ctest -C Release -V
+      working-directory: ${{ github.workspace }}/_build
 
     - name: Read Project Version from CMakeCache
       run: |
@@ -96,18 +85,21 @@ jobs:
     - name: CPack
       run: cpack -G DEB
       working-directory: ${{ github.workspace }}/_build
+      if: ${{ matrix.library_type != 'object' }}
 
     - name: Rename .deb installer
       run: |
         mv *.deb '${{ env.PROJECT_NAME }}-${{ env.CMAKE_PROJECT_VERSION }}-${{ matrix.os }}-${{ env.package_postfix }}.deb'
       shell: bash
       working-directory: ${{github.workspace}}/_build/_package/
+      if: ${{ matrix.library_type != 'object' }}
 
     - name: Upload binaries
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.PROJECT_NAME }}-${{ env.CMAKE_PROJECT_VERSION }}-${{ matrix.os }}-${{ env.package_postfix }}
         path: ${{github.workspace}}/_build/_package/*.deb
+      if: ${{ matrix.library_type != 'object' }}
 
     ############################################
     # Test if our binary can be linked against
@@ -116,24 +108,32 @@ jobs:
     - name: Install binaries
       shell: bash
       run: sudo dpkg -i ${{ github.workspace }}/_build/_package/*.deb
+      if: ${{ matrix.library_type != 'object' }}
 
     - name: Compile integration test (Release)
       run: |
-           cmake -B ${{github.workspace}}/samples/integration_test/_build/release -DCMAKE_BUILD_TYPE=Release
+           cmake -B ${{github.workspace}}/samples/integration_test/_build/release \
+                 -DCMAKE_BUILD_TYPE=Release
            cmake --build ${{github.workspace}}/samples/integration_test/_build/release
+           
       working-directory: ${{ github.workspace }}/samples/integration_test
+      if: ${{ matrix.library_type != 'object' }}
 
     - name: Run integration test (Release)
       run: ./integration_test
       working-directory: ${{ github.workspace }}/samples/integration_test/_build/release
+      if: ${{ matrix.library_type != 'object' }}
 
     - name: Compile integration test (Debug)
       run: |
-           cmake -B ${{github.workspace}}/samples/integration_test/_build/debug -DCMAKE_BUILD_TYPE=Debug
-           cmake --build ${{github.workspace}}/samples/integration_test/_build/debug
+            cmake -B ${{github.workspace}}/samples/integration_test/_build/debug \
+                  -DCMAKE_BUILD_TYPE=Debug 
+            cmake --build ${{github.workspace}}/samples/integration_test/_build/debug
+            
       working-directory: ${{ github.workspace }}/samples/integration_test
+      if: ${{ matrix.library_type != 'object' }}
 
     - name: Run integration test (Debug)
       run: ./integration_test
       working-directory: ${{ github.workspace }}/samples/integration_test/_build/debug
-
+      if: ${{ matrix.library_type != 'object' }}

@@ -48,7 +48,7 @@ set(sources
     src/tcp_pubsub_logger_abstraction.h
 )
 
-add_library (${PROJECT_NAME}
+add_library (${PROJECT_NAME} ${TCP_PUBSUB_LIBRARY_TYPE}
     ${includes}
     ${sources}
 )
@@ -83,6 +83,16 @@ target_compile_definitions(${PROJECT_NAME}
         _WIN32_WINNT=0x0601
 )
 
+# Check if tcp_pubsub is an object library. If so, define TCP_PUBSUB_STATIC_DEFINE,
+# so the CMake generated export header will be correct.
+get_target_property(tcp_pubsub_target_type tcp_pubsub TYPE)
+if (tcp_pubsub_target_type STREQUAL OBJECT_LIBRARY)
+    target_compile_definitions(${PROJECT_NAME}
+                                PUBLIC
+                                  TCP_PUBSUB_STATIC_DEFINE
+                                )
+endif()
+
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_14)
 
 target_compile_options(${PROJECT_NAME} PRIVATE
@@ -110,8 +120,10 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 
 ##################################
 
-include(sourcetree.cmake)
-create_source_tree(${includes} ${sources})
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES 
+    ${includes}
+    ${sources}
+)
 
 ################################################################################
 ### Installation rules
