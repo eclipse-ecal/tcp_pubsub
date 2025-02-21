@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: MIT
 ################################################################################
 
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.13...4.0)
 
 project(tcp_pubsub_test)
 
