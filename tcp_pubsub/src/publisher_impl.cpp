@@ -3,22 +3,13 @@
 
 #include "publisher_impl.h"
 
-#include "tcp_header.h"
-#include "publisher_session.h"
-#include "portable_endian.h"
-
-#include "tcp_pubsub/tcp_pubsub_logger.h"
-#include "tcp_pubsub_logger_abstraction.h"
 #include <algorithm>
 #include <asio.hpp>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <functional>
 #include <ios>
-#include <tcp_pubsub/executor.h>
-#include <executor_impl.h> // IWYU pragma: keep
-
-#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -26,6 +17,15 @@
 #include <thread>
 #include <utility>
 #include <vector>
+
+#include "executor_impl.h" // IWYU pragma: keep
+#include "portable_endian.h"
+#include "publisher_session.h"
+#include "tcp_header.h"
+#include "tcp_pubsub/tcp_pubsub_logger.h"
+#include "tcp_pubsub_logger_abstraction.h"
+#include <tcp_pubsub/executor.h>
+
 
 namespace tcp_pubsub
 {

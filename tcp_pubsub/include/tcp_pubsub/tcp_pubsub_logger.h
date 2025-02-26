@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include <string>
 #include <functional>
 #include <iostream>
+#include <string>
 
 #include <tcp_pubsub/tcp_pubsub_version.h> // IWYU pragma: keep
 

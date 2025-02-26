@@ -4,10 +4,11 @@
 #pragma once
 
 #include <cstdint>
-
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "executor.h"
 #include "subscriber_session.h"
@@ -15,8 +16,6 @@
 
 #include <tcp_pubsub/tcp_pubsub_export.h>
 #include <tcp_pubsub/tcp_pubsub_version.h> // IWYU pragma: keep
-#include <utility>
-#include <vector>
 
 namespace tcp_pubsub
 {

@@ -3,8 +3,6 @@
 
 #include "publisher_session.h"
 
-#include <asio.hpp>
-
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -18,10 +16,11 @@
 #include <thread>
 #include <vector>
 
-#include "tcp_header.h"
-#include "portable_endian.h"
+#include <asio.hpp>
 
+#include "portable_endian.h"
 #include "protocol_handshake_message.h"
+#include "tcp_header.h"
 #include "tcp_pubsub/tcp_pubsub_logger.h"
 #include "tcp_pubsub_logger_abstraction.h"
 

@@ -3,15 +3,6 @@
 
 #include "subscriber_session_impl.h"
 
-#include "portable_endian.h"
-
-#include "protocol_handshake_message.h"
-#include "tcp_header.h"
-#include "tcp_pubsub/tcp_pubsub_logger.h"
-#include "tcp_pubsub_logger_abstraction.h"
-
-#include <asio.hpp>
-
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
@@ -26,6 +17,14 @@
 #include <thread>
 #include <utility>
 #include <vector>
+
+#include <asio.hpp>
+
+#include "portable_endian.h"
+#include "protocol_handshake_message.h"
+#include "tcp_header.h"
+#include "tcp_pubsub/tcp_pubsub_logger.h"
+#include "tcp_pubsub_logger_abstraction.h"
 
 namespace tcp_pubsub
 {
