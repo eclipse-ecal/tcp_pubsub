@@ -1,10 +1,13 @@
 // Copyright (c) Continental. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for details.
 
+#include <tcp_pubsub/subscriber_session.h>
+
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <tcp_pubsub/subscriber_session.h>
+#include <utility>
+#include <vector>
 
 #include "subscriber_session_impl.h"
 
@@ -19,11 +22,11 @@ namespace tcp_pubsub
     subscriber_session_impl_->cancel();
   }
 
-  std::string SubscriberSession::getAddress() const
-    { return subscriber_session_impl_->getAddress(); }
+  std::vector<std::pair<std::string, uint16_t>> SubscriberSession::getPublisherList() const
+    { return subscriber_session_impl_->getPublisherList(); }
 
-  uint16_t    SubscriberSession::getPort()    const
-    { return subscriber_session_impl_->getPort(); }
+  std::pair<std::string, uint16_t> SubscriberSession::getConnectedPublisher() const
+    { return subscriber_session_impl_->getConnectedPublisher(); }
 
   void SubscriberSession::cancel()
     { subscriber_session_impl_->cancel(); }

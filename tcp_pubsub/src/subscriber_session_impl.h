@@ -23,8 +23,7 @@ class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSes
   //////////////////////////////////////////////
   public:
     SubscriberSession_Impl(const std::shared_ptr<asio::io_service>&                             io_service
-                          , const std::string&                                                  address
-                          , uint16_t                                                            port
+                          , const std::vector<std::pair<std::string, uint16_t>>&                publisher_list
                           , int                                                                 max_reconnection_attempts
                           , const std::function<std::shared_ptr<std::vector<char>>()>&          get_buffer_handler
                           , const std::function<void(const std::shared_ptr<SubscriberSession_Impl>&)>& session_closed_handler
@@ -49,8 +48,8 @@ class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSes
     void start();
 
   private:
-    void resolveEndpoint();
-    void connectToEndpoint(const asio::ip::tcp::resolver::iterator& resolved_endpoints);
+    void resolveEndpoint(size_t publisher_list_index);
+    void connectToEndpoint(const asio::ip::tcp::resolver::iterator& resolved_endpoints, size_t publisher_list_index);
 
     void sendProtokolHandshakeRequest();
 
@@ -71,11 +70,11 @@ class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSes
   public:
     void        setSynchronousCallback(const std::function<void(const std::shared_ptr<std::vector<char>>&, const std::shared_ptr<TcpHeader>&)>& callback);
 
-    std::string getAddress() const;
-    uint16_t    getPort()    const;
-
     void        cancel();
     bool        isConnected() const;
+
+    std::vector<std::pair<std::string, uint16_t>> getPublisherList() const;
+    std::pair<std::string, uint16_t>              getConnectedPublisher() const;
 
     std::string remoteEndpointToString() const;
     std::string localEndpointToString() const;
@@ -86,10 +85,12 @@ class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSes
   //////////////////////////////////////////////
   private:
     // Endpoint and resolver given by / constructed by the constructor
-    std::string             address_;
-    uint16_t                port_;
+    std::vector<std::pair<std::string, uint16_t>> publisher_list_;              ///< The list of endpoints that this session will connect to. The first reachable will be used
     asio::ip::tcp::resolver resolver_;
     asio::ip::tcp::endpoint endpoint_;
+
+    mutable std::mutex               connected_publisher_endpoint_mutex_;       ///< Mutex for the connected_publisher_endpoint_
+    std::pair<std::string, uint16_t> connected_publisher_endpoint_;             ///< The endpoint of the publisher we are connected to
 
     // Amount of retries left
     int                max_reconnection_attempts_;
@@ -102,9 +103,9 @@ class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSes
     asio::io_service::strand      data_strand_;   // Used for socket operations and the callback. This is done so messages don't queue up in the asio stack. We only start receiving new messages, after we have delivered the current one.
 
     // Handlers
-    const std::function<std::shared_ptr<std::vector<char>>()>                                         get_buffer_handler_;         /// Function for retrieving / constructing an empty buffer
-    const std::function<void(const std::shared_ptr<SubscriberSession_Impl>&)>                         session_closed_handler_;     /// Handler that is called when the session is closed
-    std::function<void(const std::shared_ptr<std::vector<char>>&, const std::shared_ptr<TcpHeader>&)> synchronous_callback_;       /// [PROTECTED BY data_strand_!] Callback that is called when a complete message has been received. Executed in the asio constext, so this must be cheap!
+    const std::function<std::shared_ptr<std::vector<char>>()>                                         get_buffer_handler_;         ///< Function for retrieving / constructing an empty buffer
+    const std::function<void(const std::shared_ptr<SubscriberSession_Impl>&)>                         session_closed_handler_;     ///< Handler that is called when the session is closed
+    std::function<void(const std::shared_ptr<std::vector<char>>&, const std::shared_ptr<TcpHeader>&)> synchronous_callback_;       ///< [PROTECTED BY data_strand_!] Callback that is called when a complete message has been received. Executed in the asio constext, so this must be cheap!
 
     // Logger
     const tcp_pubsub::logger::logger_t log_;

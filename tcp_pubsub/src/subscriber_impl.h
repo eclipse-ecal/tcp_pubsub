@@ -47,7 +47,7 @@ class Subscriber_Impl : public std::enable_shared_from_this<Subscriber_Impl>
   // Session Management
   ////////////////////////////////////////////////
   public: 
-    std::shared_ptr<SubscriberSession>              addSession(const std::string& address, uint16_t port, int max_reconnection_attempts);
+    std::shared_ptr<SubscriberSession>              addSession(const std::vector<std::pair<std::string, uint16_t>>& publisher_list, int max_reconnection_attempts);
     std::vector<std::shared_ptr<SubscriberSession>> getSessions() const;
 
     void setCallback(const std::function<void(const CallbackData& callback_data)>& callback_function, bool synchronous_execution);

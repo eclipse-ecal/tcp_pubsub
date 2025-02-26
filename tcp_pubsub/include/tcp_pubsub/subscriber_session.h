@@ -3,9 +3,12 @@
 
 #pragma once
 
+#include <cstdint>
+#include <cstdint>
 #include <memory>
 #include <string>
-#include <cstdint>
+#include <utility>
+#include <vector>
 
 #include <tcp_pubsub/tcp_pubsub_version.h> // IWYU pragma: keep
 #include <tcp_pubsub/tcp_pubsub_export.h>
@@ -48,18 +51,23 @@ namespace tcp_pubsub
 
   public:
     /**
-     * @brief Get the address used when creating the Session
+     * @brief Get the list of publishers used for creating the session.
      * 
-     * @return The address / hostname of this Session
+     * The session will try to connect to the publishers in the order they are
+     * present in that list. If a connection fails, it will try the next one.
+     * 
+     * For checking which publisher is currently connected, use getConnectedPublisher().
+     * 
+     * @return The list of publishers used for creating the session
      */
-    TCP_PUBSUB_EXPORT std::string getAddress() const;
+    TCP_PUBSUB_EXPORT std::vector<std::pair<std::string, uint16_t>> getPublisherList() const;
 
     /**
-     * @brief Get the port used when creating the Session.
+     * @brief Get the currently connected publisher address
      * 
-     * @return The port this Session is connecting to
+     * @return The address and port of the currently connected publisher
      */
-    TCP_PUBSUB_EXPORT uint16_t    getPort()    const;
+    TCP_PUBSUB_EXPORT std::pair<std::string, uint16_t>              getConnectedPublisher() const;
 
     /**
      * @brief Cancels the Session

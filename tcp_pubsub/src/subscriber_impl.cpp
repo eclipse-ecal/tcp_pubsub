@@ -55,10 +55,19 @@ namespace tcp_pubsub
   ////////////////////////////////////////////////
   // Session Management
   ////////////////////////////////////////////////
-  std::shared_ptr<SubscriberSession> Subscriber_Impl::addSession(const std::string& address, uint16_t port, int max_reconnection_attempts)
+  std::shared_ptr<SubscriberSession> Subscriber_Impl::addSession(const std::vector<std::pair<std::string, uint16_t>>& publisher_list, int max_reconnection_attempts)
   {
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
-    log_(logger::LogLevel::DebugVerbose, "Subscriber " + subscriberIdString() + ": Adding session for endpoint " + address + ":" + std::to_string(port) + ".");
+    // Create a list of all publishers as string
+    std::string publisher_list_string;
+    for (const auto& publisher : publisher_list)
+    {
+      publisher_list_string += publisher.first + ":" + std::to_string(publisher.second);
+      if (&publisher != &publisher_list.back())
+        publisher_list_string += ", ";
+    }
+
+    log_(logger::LogLevel::DebugVerbose, "Subscriber " + subscriberIdString() + ": Adding session for endpoints {" + publisher_list_string + "}.");
 #endif
 
     // Function for getting a free buffer
@@ -101,8 +110,7 @@ namespace tcp_pubsub
     // cannot access it. Thus, we crate the object manually with new.
     std::shared_ptr<SubscriberSession> subscriber_session(
        new SubscriberSession(std::make_shared<SubscriberSession_Impl>(executor_->executor_impl_->ioService()
-                                                                    , address
-                                                                    , port
+                                                                    , publisher_list
                                                                     , max_reconnection_attempts
                                                                     , get_free_buffer_handler
                                                                     , subscriber_session_closed_handler

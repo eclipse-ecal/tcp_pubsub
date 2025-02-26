@@ -26,7 +26,11 @@ namespace tcp_pubsub
   }
 
   std::shared_ptr<SubscriberSession> Subscriber::addSession(const std::string& address, uint16_t port, int max_reconnection_attempts)
-    { return subscriber_impl_->addSession(address, port, max_reconnection_attempts); }
+  { return subscriber_impl_->addSession(std::vector<std::pair<std::string, uint16_t>>{{address, port}}, max_reconnection_attempts); }
+
+  std::shared_ptr<SubscriberSession> Subscriber::addSession(const std::vector<std::pair<std::string, uint16_t>>& publisher_list, int max_reconnection_attempts)
+    { return subscriber_impl_->addSession(publisher_list, max_reconnection_attempts); }
+
 
   std::vector<std::shared_ptr<SubscriberSession>> Subscriber::getSessions() const
     { return subscriber_impl_->getSessions(); }
