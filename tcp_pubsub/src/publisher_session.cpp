@@ -3,6 +3,8 @@
 
 #include "publisher_session.h"
 
+#include <asio.hpp>
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>

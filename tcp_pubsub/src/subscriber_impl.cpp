@@ -3,12 +3,12 @@
 
 #include "subscriber_impl.h"
 
-#include "executor_impl.h"
 #include "portable_endian.h"
 #include "subscriber_session_impl.h"
 #include "tcp_header.h"
 #include "tcp_pubsub/callback_data.h"
 #include "tcp_pubsub/executor.h"
+#include "executor_impl.h" // IWYU pragma: keep
 #include "tcp_pubsub/subscriber_session.h"
 #include "tcp_pubsub/tcp_pubsub_logger.h"
 #include "tcp_pubsub_logger_abstraction.h"

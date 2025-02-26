@@ -3,12 +3,13 @@
 
 #include "subscriber_session_impl.h"
 
-#include "portable_endian.h"
-
 #include "protocol_handshake_message.h"
 #include "tcp_header.h"
 #include "tcp_pubsub/tcp_pubsub_logger.h"
 #include "tcp_pubsub_logger_abstraction.h"
+
+#include <asio.hpp>
+
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
@@ -16,9 +17,12 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace tcp_pubsub
@@ -111,7 +115,7 @@ namespace tcp_pubsub
                                   {
                                     // Log warning
                                     std::string message = "Failed resolving any endpoint: ";
-                                    for (int i = 0; i < me->publisher_list_.size(); i++)
+                                    for (size_t i = 0; i < me->publisher_list_.size(); i++)
                                     {
                                       message += me->publisher_list_[i].first + ":" + std::to_string(me->publisher_list_[i].second);
                                       if (i + 1 < me->publisher_list_.size())

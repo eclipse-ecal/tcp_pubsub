@@ -5,9 +5,6 @@
 
 #include <cstddef>
 #include <memory>
-#include <string>
-
-#include <cstdint>
 
 #include "tcp_pubsub_logger.h"
 

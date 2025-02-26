@@ -8,6 +8,7 @@
 #include <tcp_pubsub/subscriber.h>
 
 #include <tcp_pubsub/executor.h>
+#include <utility>
 #include <vector>
 
 #include "subscriber_impl.h"

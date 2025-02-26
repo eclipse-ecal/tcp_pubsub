@@ -4,6 +4,9 @@
 #include "executor_impl.h"
 #include "tcp_pubsub/tcp_pubsub_logger.h"
 #include "tcp_pubsub_logger_abstraction.h"
+
+#include <asio.hpp>
+
 #include <cstddef>
 #include <memory>
 #include <sstream>

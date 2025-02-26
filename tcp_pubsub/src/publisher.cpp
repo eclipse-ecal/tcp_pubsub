@@ -11,7 +11,6 @@
 #include <tcp_pubsub/publisher.h>
 #include <tcp_pubsub/executor.h>
 
-#include "executor_impl.h"
 #include "publisher_impl.h"
 
 namespace tcp_pubsub

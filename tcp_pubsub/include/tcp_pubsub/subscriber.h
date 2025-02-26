@@ -5,7 +5,6 @@
 
 #include <cstdint>
 
-#include <chrono>
 #include <functional>
 #include <memory>
 #include <string>
@@ -16,6 +15,7 @@
 
 #include <tcp_pubsub/tcp_pubsub_export.h>
 #include <tcp_pubsub/tcp_pubsub_version.h> // IWYU pragma: keep
+#include <utility>
 #include <vector>
 
 namespace tcp_pubsub
