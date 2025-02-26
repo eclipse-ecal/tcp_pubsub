@@ -178,7 +178,7 @@ namespace tcp_pubsub
 
                               // Store the connected publisher endpoint
                               {
-                                std::lock_guard<std::mutex> lock(me->connected_publisher_endpoint_mutex_);
+                                const std::lock_guard<std::mutex> lock(me->connected_publisher_endpoint_mutex_);
                                 me->connected_publisher_endpoint_ = me->publisher_list_[publisher_list_index];
                               }
 
@@ -233,7 +233,7 @@ namespace tcp_pubsub
   {
     // Reset the connected publisher endpoint
     {
-      std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
+      const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
       connected_publisher_endpoint_ = std::make_pair("", 0);
     }
 
@@ -503,7 +503,7 @@ namespace tcp_pubsub
 
   std::pair<std::string, uint16_t> SubscriberSession_Impl::getConnectedPublisher() const
   {
-    std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
+    const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
     return connected_publisher_endpoint_;
   }
 
@@ -569,7 +569,7 @@ namespace tcp_pubsub
 
   std::string SubscriberSession_Impl::remoteEndpointToString() const
   {
-    std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
+    const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
     return (connected_publisher_endpoint_.first.empty() ? "?" : connected_publisher_endpoint_.first)
             + ":"
             + std::to_string(connected_publisher_endpoint_.second);
