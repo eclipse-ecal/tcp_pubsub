@@ -3,6 +3,8 @@
 
 #include "subscriber_session_impl.h"
 
+#include "portable_endian.h"
+
 #include "protocol_handshake_message.h"
 #include "tcp_header.h"
 #include "tcp_pubsub/tcp_pubsub_logger.h"

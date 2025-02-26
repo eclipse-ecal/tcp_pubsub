@@ -3,7 +3,6 @@
 
 #include "subscriber_impl.h"
 
-#include "portable_endian.h"
 #include "subscriber_session_impl.h"
 #include "tcp_header.h"
 #include "tcp_pubsub/callback_data.h"
