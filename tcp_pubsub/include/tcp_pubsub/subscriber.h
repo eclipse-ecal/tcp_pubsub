@@ -4,11 +4,11 @@
 #pragma once
 
 #include <cstdint>
-
-#include <chrono>
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "executor.h"
 #include "subscriber_session.h"
@@ -16,7 +16,6 @@
 
 #include <tcp_pubsub/tcp_pubsub_export.h>
 #include <tcp_pubsub/tcp_pubsub_version.h> // IWYU pragma: keep
-#include <vector>
 
 namespace tcp_pubsub
 {
@@ -110,6 +109,42 @@ namespace tcp_pubsub
      * @return A shared pointer to the session. You don't need to store it.
      */
     TCP_PUBSUB_EXPORT std::shared_ptr<SubscriberSession>              addSession(const std::string& address, uint16_t port, int max_reconnection_attempts = -1);
+
+    /**
+     * @brief Add a new connection to a publisher
+     * 
+     * Adds a new connection to a publisher. In cases where it is not clear how
+     * the publisher can be reached (e.g. multiple IP addresses), you can
+     * provide a list of pairs of address and port. The Subscriber will try to
+     * connect to all of them. The first one that works will be used. This can
+     * e.g. be used to connect both to "HOSTNAME" and "HOSTNAME.local" (i.e. the
+     * mDNS variant) or to an IPv4 and an IPv6 address. The server list must
+     * have at least one entry.
+     * 
+     * By default, a Session will try to reconnect, when anything failes. How
+     * often this shall happen until the Session will delete itself from the
+     * Subscriber can be controlled by the max_reconnection_attempts parameter.
+     * A negative value will cause the Session to retry indefinitively, so you
+     * will probably have to write your own algorithm code that cancels Sessions
+     * that will not recover any more.
+     * Between reconnection attemps the Session will wait 1 second.
+     * 
+     * Even though it may usually not make sense, you can add multiple
+     * sessions to a single publisher. 
+     * 
+     * This function is thread-safe.
+     * 
+     * @param[in] publisher_list
+     *              A list of [address, port] pairs. The first pair that works
+     *              will be used. The list must have at least one entry.
+     * 
+     * @param[in] max_reconnection_attempts
+     *              How often the Session will try to reconnect in case of an
+     *              issue. A negative value means infinite reconnection attemps.
+     * 
+     * @return A shared pointer to the session. You don't need to store it.
+     */
+    TCP_PUBSUB_EXPORT std::shared_ptr<SubscriberSession>              addSession(const std::vector<std::pair<std::string, uint16_t>>& publisher_list, int max_reconnection_attempts = -1);
 
     /**
      * @brief Get a list of all Sessions.

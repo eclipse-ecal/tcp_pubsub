@@ -3,11 +3,10 @@
 
 #pragma once
 
+#include <asio.hpp>
 #include <atomic>
 #include <cstdint>
 #include <functional>
-
-#include <asio.hpp>
 #include <memory>
 #include <mutex>
 #include <string>

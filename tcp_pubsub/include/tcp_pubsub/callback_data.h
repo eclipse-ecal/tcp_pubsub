@@ -3,10 +3,8 @@
 
 #pragma once
 
-#include <vector>
-#include <chrono>
 #include <memory>
-#include <cstdint>
+#include <vector>
 
 #include <tcp_pubsub/tcp_pubsub_version.h> // IWYU pragma: keep
 

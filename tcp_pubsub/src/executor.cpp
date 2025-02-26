@@ -1,9 +1,10 @@
 // Copyright (c) Continental. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for details.
 
+#include <tcp_pubsub/executor.h>
+
 #include <cstddef>
 #include <memory>
-#include <tcp_pubsub/executor.h>
 
 #include "executor_impl.h"
 #include "tcp_pubsub/tcp_pubsub_logger.h"

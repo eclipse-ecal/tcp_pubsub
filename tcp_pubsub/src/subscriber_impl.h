@@ -11,16 +11,15 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
-#include <asio.hpp>
 #include <recycle/shared_pool.hpp>
 
+#include <tcp_pubsub/callback_data.h>
 #include <tcp_pubsub/executor.h>
 #include <tcp_pubsub/subscriber_session.h>
-#include <tcp_pubsub/callback_data.h>
-
-#include "tcp_pubsub/tcp_pubsub_logger.h"
+#include <tcp_pubsub/tcp_pubsub_logger.h>
 
 namespace tcp_pubsub {
 class Subscriber_Impl : public std::enable_shared_from_this<Subscriber_Impl>
@@ -47,7 +46,7 @@ class Subscriber_Impl : public std::enable_shared_from_this<Subscriber_Impl>
   // Session Management
   ////////////////////////////////////////////////
   public: 
-    std::shared_ptr<SubscriberSession>              addSession(const std::string& address, uint16_t port, int max_reconnection_attempts);
+    std::shared_ptr<SubscriberSession>              addSession(const std::vector<std::pair<std::string, uint16_t>>& publisher_list, int max_reconnection_attempts);
     std::vector<std::shared_ptr<SubscriberSession>> getSessions() const;
 
     void setCallback(const std::function<void(const CallbackData& callback_data)>& callback_function, bool synchronous_execution);

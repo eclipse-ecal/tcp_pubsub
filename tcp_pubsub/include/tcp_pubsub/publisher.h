@@ -5,8 +5,6 @@
 
 #include <cstddef>
 #include <cstdint>
-
-#include <chrono>
 #include <memory>
 #include <string>
 #include <utility>
