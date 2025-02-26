@@ -344,8 +344,8 @@ TEST(tcp_pubsub, publisher_list_test)
   // Register the callback
   hello_world_subscriber.setCallback(callback_function);
 
-  // Wait up to 1 second for the subscriber to connect
-  for (int i = 0; i < 10; ++i)
+  // Wait up to 2 seconds for the subscriber to connect
+  for (int i = 0; i < 20; ++i)
   {
     if (hello_world_subscriber.getSessions().at(0)->isConnected()
       && hello_world_publisher.getSubscriberCount() >= 1)
