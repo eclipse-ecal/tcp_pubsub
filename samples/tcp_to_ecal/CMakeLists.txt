@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5.1)
+cmake_minimum_required(VERSION 3.5.1...4.0)
 set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
 
 project(tcp_to_ecal)
