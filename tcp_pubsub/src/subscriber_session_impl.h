@@ -25,7 +25,7 @@ class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSes
   /// Constructor & Destructor
   //////////////////////////////////////////////
   public:
-    SubscriberSession_Impl(const std::shared_ptr<asio::io_service>&                             io_service
+    SubscriberSession_Impl(const std::shared_ptr<asio::io_context>&                             io_service
                           , const std::vector<std::pair<std::string, uint16_t>>&                publisher_list
                           , int                                                                 max_reconnection_attempts
                           , const std::function<std::shared_ptr<std::vector<char>>()>&          get_buffer_handler
@@ -52,7 +52,7 @@ class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSes
 
   private:
     void resolveEndpoint(size_t publisher_list_index);
-    void connectToEndpoint(const asio::ip::tcp::resolver::iterator& resolved_endpoints, size_t publisher_list_index);
+    void connectToEndpoint(const asio::ip::tcp::resolver::results_type& resolved_endpoints, size_t publisher_list_index);
 
     void sendProtokolHandshakeRequest();
 
@@ -103,7 +103,7 @@ class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSes
 
     // TCP Socket & Queue (protected by the strand!)
     asio::ip::tcp::socket         data_socket_;
-    asio::io_service::strand      data_strand_;   // Used for socket operations and the callback. This is done so messages don't queue up in the asio stack. We only start receiving new messages, after we have delivered the current one.
+    asio::io_context::strand      data_strand_;   // Used for socket operations and the callback. This is done so messages don't queue up in the asio stack. We only start receiving new messages, after we have delivered the current one.
 
     // Handlers
     const std::function<std::shared_ptr<std::vector<char>>()>                                         get_buffer_handler_;         ///< Function for retrieving / constructing an empty buffer

@@ -30,7 +30,7 @@ namespace tcp_pubsub
   /// Constructor & Destructor
   //////////////////////////////////////////////
   
-  PublisherSession::PublisherSession(const std::shared_ptr<asio::io_service>&                               io_service
+  PublisherSession::PublisherSession(const std::shared_ptr<asio::io_context>&                               io_service
                                      , const std::function<void(const std::shared_ptr<PublisherSession>&)>& session_closed_handler
                                      , const tcp_pubsub::logger::logger_t&                                  log_function)
     : io_service_             (io_service)

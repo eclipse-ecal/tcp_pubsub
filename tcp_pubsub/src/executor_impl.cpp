@@ -18,8 +18,8 @@ namespace tcp_pubsub
 {
   Executor_Impl::Executor_Impl(const logger::logger_t& log_function)
     : log_(log_function)
-    , io_service_(std::make_shared<asio::io_service>())
-    , dummy_work_(std::make_shared<asio::io_service::work>(*io_service_))
+    , io_service_(std::make_shared<asio::io_context>())
+    , dummy_work_(std::make_shared<work_guard_t>(io_service_->get_executor()))
   {
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "Executor: Creating Executor.");
@@ -98,7 +98,7 @@ namespace tcp_pubsub
     io_service_->stop();
   }
 
-  std::shared_ptr<asio::io_service> Executor_Impl::ioService() const
+  std::shared_ptr<asio::io_context> Executor_Impl::ioService() const
   {
     return io_service_;
   }

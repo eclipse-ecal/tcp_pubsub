@@ -32,7 +32,7 @@ namespace tcp_pubsub
   /// Constructor & Destructor
   //////////////////////////////////////////////
   
-  SubscriberSession_Impl::SubscriberSession_Impl(const std::shared_ptr<asio::io_service>&                             io_service
+  SubscriberSession_Impl::SubscriberSession_Impl(const std::shared_ptr<asio::io_context>&                             io_service
                                                 , const std::vector<std::pair<std::string, uint16_t>>&                publisher_list
                                                 , int                                                                 max_reconnection_attempts
                                                 , const std::function<std::shared_ptr<std::vector<char>>()>&          get_buffer_handler
@@ -88,16 +88,15 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::resolveEndpoint(size_t publisher_list_index)
   {
-    const asio::ip::tcp::resolver::query query(publisher_list_[publisher_list_index].first, std::to_string(publisher_list_[publisher_list_index].second));
-
     if (canceled_)
     {
       connectionFailedHandler();
       return;
     }
 
-    resolver_.async_resolve(query
-                            , [me = shared_from_this(), publisher_list_index](asio::error_code ec, const asio::ip::tcp::resolver::iterator& resolved_endpoints)
+    resolver_.async_resolve(publisher_list_[publisher_list_index].first
+                            , std::to_string(publisher_list_[publisher_list_index].second)
+                            , [me = shared_from_this(), publisher_list_index](asio::error_code ec, const asio::ip::tcp::resolver::results_type& resolved_endpoints)
                               {
                                 if (ec)
                                 {
@@ -136,7 +135,7 @@ namespace tcp_pubsub
                               });
   }
 
-  void SubscriberSession_Impl::connectToEndpoint(const asio::ip::tcp::resolver::iterator& resolved_endpoints, size_t publisher_list_index)
+  void SubscriberSession_Impl::connectToEndpoint(const asio::ip::tcp::resolver::results_type& resolved_endpoints, size_t publisher_list_index)
   {
     if (canceled_)
     {
@@ -147,9 +146,9 @@ namespace tcp_pubsub
     // Convert the resolved_endpoints iterator to an endpoint sequence
     // (i.e. a vector of endpoints)
     auto endpoint_sequence = std::make_shared<std::vector<asio::ip::tcp::endpoint>>();
-    for (auto it = resolved_endpoints; it != asio::ip::tcp::resolver::iterator(); ++it)
+    for (const auto& endpoint : resolved_endpoints)
     {
-      endpoint_sequence->push_back(*it);
+      endpoint_sequence->push_back(endpoint);
     }
 
     asio::async_connect(data_socket_
@@ -465,7 +464,8 @@ namespace tcp_pubsub
                                                                   return;
                                                                 }
                                                                 me->synchronous_callback_(data_buffer, header);
-                                                              });
+                                                              },
+                                                              asio::get_associated_allocator(me->data_strand_));
 
                                       }
                                       else
@@ -479,7 +479,8 @@ namespace tcp_pubsub
                                       me->data_strand_.post([me]()
                                                             {
                                                               me->readHeaderLength();
-                                                            });
+                                                            },
+                                                            asio::get_associated_allocator(me->data_strand_));
                                     }));
   }
 
@@ -498,7 +499,8 @@ namespace tcp_pubsub
     data_strand_.post([me = shared_from_this(), callback]()
                       {
                         me->synchronous_callback_ = callback;
-                      });
+                      },
+                      asio::get_associated_allocator(data_strand_));
   }
 
   std::vector<std::pair<std::string, uint16_t>> SubscriberSession_Impl::getPublisherList() const
@@ -545,14 +547,16 @@ namespace tcp_pubsub
     }
 
     {
-      asio::error_code ec;
-      retry_timer_.cancel(ec);
+    try {
+      static_cast<void>(retry_timer_.cancel());
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
-      if (ec)
-        log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Failed canceling retry timer: " + ec.message());
-      else
-        log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Successfully canceled retry timer.");
+      log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Successfully canceled retry timer.");
 #endif
+    } catch (asio::system_error& err){
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
+        log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Failed canceling retry timer: " + err.what());
+#endif
+  }
     }
 
     resolver_.cancel();
