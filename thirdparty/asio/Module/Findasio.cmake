@@ -24,7 +24,7 @@ if(asio_FOUND)
     add_library(asio::asio INTERFACE IMPORTED)
     set_target_properties(asio::asio PROPERTIES
       INTERFACE_INCLUDE_DIRECTORIES ${asio_INCLUDE_DIR}
-      INTERFACE_COMPILE_DEFINITIONS ASIO_STANDALONE)
+      INTERFACE_COMPILE_DEFINITIONS "ASIO_STANDALONE;ASIO_NO_DEPRECATED")
     mark_as_advanced(asio_INCLUDE_DIR)
   endif()
 endif()

@@ -219,7 +219,7 @@ namespace tcp_pubsub
 
     asio::async_write(data_socket_
                 , asio::buffer(*buffer)
-                , data_strand_.wrap(
+                , asio::bind_executor(data_strand_,
                   [me = shared_from_this(), buffer](asio::error_code ec, std::size_t /*bytes_to_transfer*/)
                   {
                     if (ec)
@@ -300,7 +300,7 @@ namespace tcp_pubsub
     asio::async_read(data_socket_
                      , asio::buffer(&(header->header_size), sizeof(header->header_size))
                      , asio::transfer_at_least(sizeof(header->header_size))
-                     , data_strand_.wrap([me = shared_from_this(), header](asio::error_code ec, std::size_t /*length*/)
+                     , asio::bind_executor(data_strand_, [me = shared_from_this(), header](asio::error_code ec, std::size_t /*length*/)
                                         {
                                           if (ec)
                                           {
@@ -336,7 +336,7 @@ namespace tcp_pubsub
     asio::async_read(data_socket_
                     , asio::buffer(&reinterpret_cast<char*>(header.get())[sizeof(header->header_size)], bytes_to_read_from_socket)
                     , asio::transfer_at_least(bytes_to_read_from_socket)
-                    , data_strand_.wrap([me = shared_from_this(), header, bytes_to_discard_from_socket](asio::error_code ec, std::size_t /*length*/)
+                    , asio::bind_executor(data_strand_, [me = shared_from_this(), header, bytes_to_discard_from_socket](asio::error_code ec, std::size_t /*length*/)
                                         {
                                           if (ec)
                                           {
@@ -379,7 +379,7 @@ namespace tcp_pubsub
     asio::async_read(data_socket_
                     , asio::buffer(data_to_discard.data(), bytes_to_discard)
                     , asio::transfer_at_least(bytes_to_discard)
-                    , data_strand_.wrap([me = shared_from_this(), header](asio::error_code ec, std::size_t /*length*/)
+                    , asio::bind_executor(data_strand_, [me = shared_from_this(), header](asio::error_code ec, std::size_t /*length*/)
                                         {
                                           if (ec)
                                           {
@@ -423,7 +423,7 @@ namespace tcp_pubsub
     asio::async_read(data_socket_
                 , asio::buffer(data_buffer->data(), le64toh(header->data_size))
                 , asio::transfer_at_least(le64toh(header->data_size))
-                , data_strand_.wrap([me = shared_from_this(), header, data_buffer](asio::error_code ec, std::size_t /*length*/)
+                , asio::bind_executor(data_strand_, [me = shared_from_this(), header, data_buffer](asio::error_code ec, std::size_t /*length*/)
                                     {
                                       if (ec)
                                       {
