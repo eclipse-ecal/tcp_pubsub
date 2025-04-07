@@ -43,10 +43,10 @@ namespace tcp_pubsub
 
   private:
     const logger::logger_t                  log_;             /// Logger
-    std::shared_ptr<asio::io_context>       io_service_;      /// global io service
+    std::shared_ptr<asio::io_context>       io_context_;      /// global io service
 
     std::vector<std::thread>                thread_pool_;     /// Asio threadpool executing the io servic
     using work_guard_t = asio::executor_work_guard<asio::io_context::executor_type>;
-    std::shared_ptr<work_guard_t>           dummy_work_;      /// Dummy work, so the io_service will never run out of work and shut down, even if there is no publisher or subscriber at the moment
+    std::shared_ptr<work_guard_t>           dummy_work_;      /// Dummy work, so the io_context will never run out of work and shut down, even if there is no publisher or subscriber at the moment
   };
 }

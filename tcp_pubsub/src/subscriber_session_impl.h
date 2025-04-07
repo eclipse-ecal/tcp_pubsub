@@ -25,7 +25,7 @@ class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSes
   /// Constructor & Destructor
   //////////////////////////////////////////////
   public:
-    SubscriberSession_Impl(const std::shared_ptr<asio::io_context>&                             io_service
+    SubscriberSession_Impl(const std::shared_ptr<asio::io_context>&                             io_context
                           , const std::vector<std::pair<std::string, uint16_t>>&                publisher_list
                           , int                                                                 max_reconnection_attempts
                           , const std::function<std::shared_ptr<std::vector<char>>()>&          get_buffer_handler

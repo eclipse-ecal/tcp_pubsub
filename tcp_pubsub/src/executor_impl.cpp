@@ -18,8 +18,8 @@ namespace tcp_pubsub
 {
   Executor_Impl::Executor_Impl(const logger::logger_t& log_function)
     : log_(log_function)
-    , io_service_(std::make_shared<asio::io_context>())
-    , dummy_work_(std::make_shared<work_guard_t>(io_service_->get_executor()))
+    , io_context_(std::make_shared<asio::io_context>())
+    , dummy_work_(std::make_shared<work_guard_t>(io_context_->get_executor()))
   {
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "Executor: Creating Executor.");
@@ -76,7 +76,7 @@ namespace tcp_pubsub
                                   me->log_(logger::LogLevel::Debug, "Executor: IoService::Run() in thread " + thread_id);
 #endif
 
-                                  me->io_service_->run();
+                                  me->io_context_->run();
 
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
                                   me->log_(logger::LogLevel::Debug, "Executor: IoService: Shutdown of thread " + thread_id);
@@ -95,12 +95,12 @@ namespace tcp_pubsub
     dummy_work_.reset();
 
     // Stop the IO Service
-    io_service_->stop();
+    io_context_->stop();
   }
 
   std::shared_ptr<asio::io_context> Executor_Impl::ioService() const
   {
-    return io_service_;
+    return io_context_;
   }
 
   logger::logger_t Executor_Impl::logFunction() const

@@ -32,20 +32,20 @@ namespace tcp_pubsub
   /// Constructor & Destructor
   //////////////////////////////////////////////
   
-  SubscriberSession_Impl::SubscriberSession_Impl(const std::shared_ptr<asio::io_context>&                             io_service
+  SubscriberSession_Impl::SubscriberSession_Impl(const std::shared_ptr<asio::io_context>&                             io_context
                                                 , const std::vector<std::pair<std::string, uint16_t>>&                publisher_list
                                                 , int                                                                 max_reconnection_attempts
                                                 , const std::function<std::shared_ptr<std::vector<char>>()>&          get_buffer_handler
                                                 , const std::function<void(const std::shared_ptr<SubscriberSession_Impl>&)>& session_closed_handler
                                                 , const tcp_pubsub::logger::logger_t&                                      log_function)
     : publisher_list_         (publisher_list)
-    , resolver_               (*io_service)
+    , resolver_               (*io_context)
     , max_reconnection_attempts_(max_reconnection_attempts)
     , retries_left_           (max_reconnection_attempts)
-    , retry_timer_            (*io_service, std::chrono::seconds(1))
+    , retry_timer_            (*io_context, std::chrono::seconds(1))
     , canceled_               (false)
-    , data_socket_            (*io_service)
-    , data_strand_            (*io_service)
+    , data_socket_            (*io_context)
+    , data_strand_            (*io_context)
     , get_buffer_handler_     (get_buffer_handler)
     , session_closed_handler_ (session_closed_handler)
     , log_                    (log_function)

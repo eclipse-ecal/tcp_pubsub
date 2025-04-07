@@ -36,7 +36,7 @@ namespace tcp_pubsub
   /// Constructor & Destructor
   //////////////////////////////////////////////
   public:
-    PublisherSession(const std::shared_ptr<asio::io_context>&                               io_service
+    PublisherSession(const std::shared_ptr<asio::io_context>&                               io_context
                     , const std::function<void(const std::shared_ptr<PublisherSession>&)>&  session_closed_handler
                     , const tcp_pubsub::logger::logger_t&                                        log_function);
 
@@ -97,7 +97,7 @@ namespace tcp_pubsub
   //////////////////////////////////////////////
   private:
     // Asio IO Service
-    std::shared_ptr<asio::io_context> io_service_;
+    std::shared_ptr<asio::io_context> io_context_;
 
     // Whether the session has been canceled
     std::atomic<State>  state_;
