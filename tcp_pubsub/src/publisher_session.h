@@ -36,7 +36,7 @@ namespace tcp_pubsub
   /// Constructor & Destructor
   //////////////////////////////////////////////
   public:
-    PublisherSession(const std::shared_ptr<asio::io_service>&                               io_service
+    PublisherSession(const std::shared_ptr<asio::io_context>&                               io_context
                     , const std::function<void(const std::shared_ptr<PublisherSession>&)>&  session_closed_handler
                     , const tcp_pubsub::logger::logger_t&                                        log_function);
 
@@ -97,7 +97,7 @@ namespace tcp_pubsub
   //////////////////////////////////////////////
   private:
     // Asio IO Service
-    std::shared_ptr<asio::io_service> io_service_;
+    std::shared_ptr<asio::io_context> io_context_;
 
     // Whether the session has been canceled
     std::atomic<State>  state_;
@@ -109,7 +109,7 @@ namespace tcp_pubsub
 
     // TCP Socket & Queue (protected by the strand!)
     asio::ip::tcp::socket     data_socket_;
-    asio::io_service::strand  data_strand_;
+    asio::io_context::strand  data_strand_;
 
     // Variable holding if we are currently sending any data and what data to send next
     std::mutex                         next_buffer_mutex_;

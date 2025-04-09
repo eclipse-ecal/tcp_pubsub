@@ -32,20 +32,20 @@ namespace tcp_pubsub
   /// Constructor & Destructor
   //////////////////////////////////////////////
   
-  SubscriberSession_Impl::SubscriberSession_Impl(const std::shared_ptr<asio::io_service>&                             io_service
+  SubscriberSession_Impl::SubscriberSession_Impl(const std::shared_ptr<asio::io_context>&                             io_context
                                                 , const std::vector<std::pair<std::string, uint16_t>>&                publisher_list
                                                 , int                                                                 max_reconnection_attempts
                                                 , const std::function<std::shared_ptr<std::vector<char>>()>&          get_buffer_handler
                                                 , const std::function<void(const std::shared_ptr<SubscriberSession_Impl>&)>& session_closed_handler
                                                 , const tcp_pubsub::logger::logger_t&                                      log_function)
     : publisher_list_         (publisher_list)
-    , resolver_               (*io_service)
+    , resolver_               (*io_context)
     , max_reconnection_attempts_(max_reconnection_attempts)
     , retries_left_           (max_reconnection_attempts)
-    , retry_timer_            (*io_service, std::chrono::seconds(1))
+    , retry_timer_            (*io_context, std::chrono::seconds(1))
     , canceled_               (false)
-    , data_socket_            (*io_service)
-    , data_strand_            (*io_service)
+    , data_socket_            (*io_context)
+    , data_strand_            (*io_context)
     , get_buffer_handler_     (get_buffer_handler)
     , session_closed_handler_ (session_closed_handler)
     , log_                    (log_function)
@@ -88,16 +88,15 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::resolveEndpoint(size_t publisher_list_index)
   {
-    const asio::ip::tcp::resolver::query query(publisher_list_[publisher_list_index].first, std::to_string(publisher_list_[publisher_list_index].second));
-
     if (canceled_)
     {
       connectionFailedHandler();
       return;
     }
 
-    resolver_.async_resolve(query
-                            , [me = shared_from_this(), publisher_list_index](asio::error_code ec, const asio::ip::tcp::resolver::iterator& resolved_endpoints)
+    resolver_.async_resolve(publisher_list_[publisher_list_index].first
+                            , std::to_string(publisher_list_[publisher_list_index].second)
+                            , [me = shared_from_this(), publisher_list_index](asio::error_code ec, const asio::ip::tcp::resolver::results_type& resolved_endpoints)
                               {
                                 if (ec)
                                 {
@@ -136,7 +135,7 @@ namespace tcp_pubsub
                               });
   }
 
-  void SubscriberSession_Impl::connectToEndpoint(const asio::ip::tcp::resolver::iterator& resolved_endpoints, size_t publisher_list_index)
+  void SubscriberSession_Impl::connectToEndpoint(const asio::ip::tcp::resolver::results_type& resolved_endpoints, size_t publisher_list_index)
   {
     if (canceled_)
     {
@@ -147,9 +146,9 @@ namespace tcp_pubsub
     // Convert the resolved_endpoints iterator to an endpoint sequence
     // (i.e. a vector of endpoints)
     auto endpoint_sequence = std::make_shared<std::vector<asio::ip::tcp::endpoint>>();
-    for (auto it = resolved_endpoints; it != asio::ip::tcp::resolver::iterator(); ++it)
+    for (const auto& endpoint : resolved_endpoints)
     {
-      endpoint_sequence->push_back(*it);
+      endpoint_sequence->push_back(endpoint);
     }
 
     asio::async_connect(data_socket_
@@ -220,7 +219,7 @@ namespace tcp_pubsub
 
     asio::async_write(data_socket_
                 , asio::buffer(*buffer)
-                , data_strand_.wrap(
+                , asio::bind_executor(data_strand_,
                   [me = shared_from_this(), buffer](asio::error_code ec, std::size_t /*bytes_to_transfer*/)
                   {
                     if (ec)
@@ -301,7 +300,7 @@ namespace tcp_pubsub
     asio::async_read(data_socket_
                      , asio::buffer(&(header->header_size), sizeof(header->header_size))
                      , asio::transfer_at_least(sizeof(header->header_size))
-                     , data_strand_.wrap([me = shared_from_this(), header](asio::error_code ec, std::size_t /*length*/)
+                     , asio::bind_executor(data_strand_, [me = shared_from_this(), header](asio::error_code ec, std::size_t /*length*/)
                                         {
                                           if (ec)
                                           {
@@ -337,7 +336,7 @@ namespace tcp_pubsub
     asio::async_read(data_socket_
                     , asio::buffer(&reinterpret_cast<char*>(header.get())[sizeof(header->header_size)], bytes_to_read_from_socket)
                     , asio::transfer_at_least(bytes_to_read_from_socket)
-                    , data_strand_.wrap([me = shared_from_this(), header, bytes_to_discard_from_socket](asio::error_code ec, std::size_t /*length*/)
+                    , asio::bind_executor(data_strand_, [me = shared_from_this(), header, bytes_to_discard_from_socket](asio::error_code ec, std::size_t /*length*/)
                                         {
                                           if (ec)
                                           {
@@ -380,7 +379,7 @@ namespace tcp_pubsub
     asio::async_read(data_socket_
                     , asio::buffer(data_to_discard.data(), bytes_to_discard)
                     , asio::transfer_at_least(bytes_to_discard)
-                    , data_strand_.wrap([me = shared_from_this(), header](asio::error_code ec, std::size_t /*length*/)
+                    , asio::bind_executor(data_strand_, [me = shared_from_this(), header](asio::error_code ec, std::size_t /*length*/)
                                         {
                                           if (ec)
                                           {
@@ -424,7 +423,7 @@ namespace tcp_pubsub
     asio::async_read(data_socket_
                 , asio::buffer(data_buffer->data(), le64toh(header->data_size))
                 , asio::transfer_at_least(le64toh(header->data_size))
-                , data_strand_.wrap([me = shared_from_this(), header, data_buffer](asio::error_code ec, std::size_t /*length*/)
+                , asio::bind_executor(data_strand_, [me = shared_from_this(), header, data_buffer](asio::error_code ec, std::size_t /*length*/)
                                     {
                                       if (ec)
                                       {
@@ -457,7 +456,7 @@ namespace tcp_pubsub
                                         me->log_(logger::LogLevel::DebugVerbose,  "SubscriberSession " + me->endpointToString() + ": Received message of type \"RegularPayload\"");
 #endif
                                         // Call the callback first, ...
-                                        me->data_strand_.post([me, data_buffer, header]()
+                                        asio::post(me->data_strand_, [me, data_buffer, header]()
                                                               {
                                                                 if (me->canceled_)
                                                                 {
@@ -476,10 +475,9 @@ namespace tcp_pubsub
                                       }
 
                                       // ... then start reading the next message
-                                      me->data_strand_.post([me]()
-                                                            {
-                                                              me->readHeaderLength();
-                                                            });
+                                      asio::post(me->data_strand_, [me]() {
+                                        me->readHeaderLength();
+                                      });
                                     }));
   }
 
@@ -495,7 +493,7 @@ namespace tcp_pubsub
     //   - We can protect the variable with the data_strand => If the callback is currently running, the new callback will be applied afterwards
     //   - We don't need an additional mutex, so a synchronous callback should actually be able to set another callback that gets activated once the current callback call ends
     //   - Reading the next message will start once the callback call is finished. Therefore, read and callback are synchronized and the callback calls don't start stacking up
-    data_strand_.post([me = shared_from_this(), callback]()
+    asio::post(data_strand_, [me = shared_from_this(), callback]()
                       {
                         me->synchronous_callback_ = callback;
                       });
@@ -545,14 +543,16 @@ namespace tcp_pubsub
     }
 
     {
-      asio::error_code ec;
-      retry_timer_.cancel(ec);
+    try {
+      static_cast<void>(retry_timer_.cancel());
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
-      if (ec)
-        log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Failed canceling retry timer: " + ec.message());
-      else
-        log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Successfully canceled retry timer.");
+      log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Successfully canceled retry timer.");
 #endif
+    } catch (asio::system_error& err){
+#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
+        log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Failed canceling retry timer: " + err.what());
+#endif
+  }
     }
 
     resolver_.cancel();
