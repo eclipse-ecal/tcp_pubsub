@@ -456,7 +456,7 @@ namespace tcp_pubsub
                                         me->log_(logger::LogLevel::DebugVerbose,  "SubscriberSession " + me->endpointToString() + ": Received message of type \"RegularPayload\"");
 #endif
                                         // Call the callback first, ...
-                                        me->data_strand_.post([me, data_buffer, header]()
+                                        asio::post(me->data_strand_, [me, data_buffer, header]()
                                                               {
                                                                 if (me->canceled_)
                                                                 {
@@ -464,8 +464,7 @@ namespace tcp_pubsub
                                                                   return;
                                                                 }
                                                                 me->synchronous_callback_(data_buffer, header);
-                                                              },
-                                                              asio::get_associated_allocator(me->data_strand_));
+                                                              });
 
                                       }
                                       else
@@ -476,11 +475,9 @@ namespace tcp_pubsub
                                       }
 
                                       // ... then start reading the next message
-                                      me->data_strand_.post([me]()
-                                                            {
-                                                              me->readHeaderLength();
-                                                            },
-                                                            asio::get_associated_allocator(me->data_strand_));
+                                      asio::post(me->data_strand_, [me]() {
+                                        me->readHeaderLength();
+                                      });
                                     }));
   }
 
@@ -496,11 +493,10 @@ namespace tcp_pubsub
     //   - We can protect the variable with the data_strand => If the callback is currently running, the new callback will be applied afterwards
     //   - We don't need an additional mutex, so a synchronous callback should actually be able to set another callback that gets activated once the current callback call ends
     //   - Reading the next message will start once the callback call is finished. Therefore, read and callback are synchronized and the callback calls don't start stacking up
-    data_strand_.post([me = shared_from_this(), callback]()
+    asio::post(data_strand_, [me = shared_from_this(), callback]()
                       {
                         me->synchronous_callback_ = callback;
-                      },
-                      asio::get_associated_allocator(data_strand_));
+                      });
   }
 
   std::vector<std::pair<std::string, uint16_t>> SubscriberSession_Impl::getPublisherList() const
