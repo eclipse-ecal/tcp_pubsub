@@ -62,6 +62,7 @@ jobs:
       shell: cmd
       run: |
            cmake -B ${{github.workspace}}/_build ^
+                 -G "Visual Studio 16 2019" ^
                  -A ${{ matrix.build_arch }} ^
                  -T ${{ env.VS_TOOLSET }} ^
                  -DTCP_PUBSUB_BUILD_SAMPLES=ON ^
