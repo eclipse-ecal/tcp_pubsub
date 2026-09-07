@@ -369,17 +369,17 @@ namespace tcp_pubsub
       return;
     }
 
-    std::vector<char> data_to_discard;
-    data_to_discard.resize(bytes_to_discard);
+    // Buffer must outlive this function via shared_ptr, as async_read completes after we return (fixes UAF)
+    auto data_to_discard = std::make_shared<std::vector<char>>(bytes_to_discard);
 
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose,  "SubscriberSession " + endpointToString() + ": Discarding " + std::to_string(bytes_to_discard) + " bytes after the header.");
 #endif
 
     asio::async_read(data_socket_
-                    , asio::buffer(data_to_discard.data(), bytes_to_discard)
+                    , asio::buffer(*data_to_discard)
                     , asio::transfer_at_least(bytes_to_discard)
-                    , asio::bind_executor(data_strand_, [me = shared_from_this(), header](asio::error_code ec, std::size_t /*length*/)
+                    , asio::bind_executor(data_strand_, [me = shared_from_this(), header, data_to_discard](asio::error_code ec, std::size_t /*length*/)
                                         {
                                           if (ec)
                                           {
