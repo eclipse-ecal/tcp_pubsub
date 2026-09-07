@@ -426,7 +426,11 @@ TEST(tcp_pubsub, oversized_response_header_does_not_crash_subscriber)
   using asio::ip::tcp;
 
   asio::io_context server_io_context;
-  tcp::acceptor acceptor(server_io_context, tcp::endpoint(tcp::v4(), 1588));
+  tcp::acceptor acceptor(server_io_context);
+  acceptor.open(tcp::v4());
+  acceptor.set_option(tcp::acceptor::reuse_address(true));
+  acceptor.bind(tcp::endpoint(tcp::v4(), 1588));
+  acceptor.listen();
 
   // Create executor + subscriber, which will connect to our raw "publisher" below
   std::shared_ptr<tcp_pubsub::Executor> executor = std::make_shared<tcp_pubsub::Executor>(1, tcp_pubsub::logger::logger_no_verbose_debug);
