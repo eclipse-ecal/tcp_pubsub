@@ -5,7 +5,6 @@
 
 #include <chrono>
 #include <cstdint>
-#include <cstring>
 #include <functional>
 #include <memory>
 #include <string>
@@ -21,6 +20,20 @@
 #include "atomic_signalable.h"
 
 #include <gtest/gtest.h>
+
+namespace
+{
+  // The TcpHeader wire format is always little-endian, regardless of host endianness
+  // (see tcp_pubsub/src/tcp_header.h). This writes an unsigned integer's bytes in that order.
+  template <typename T>
+  void writeLittleEndian(char* dest, T value)
+  {
+    for (size_t i = 0; i < sizeof(T); ++i)
+    {
+      dest[i] = static_cast<char>((value >> (8 * i)) & 0xff);
+    }
+  }
+}
 
 // Basic test that sends two messages from a publisher to a subscriber
 TEST(tcp_pubsub, basic_test)
@@ -345,10 +358,10 @@ TEST(tcp_pubsub, oversized_handshake_header_does_not_crash)
     constexpr uint64_t data_size   = 1;
 
     std::vector<char> handshake_header(12, 0);
-    std::memcpy(handshake_header.data() + 0, &header_size, sizeof(header_size));
+    writeLittleEndian(handshake_header.data() + 0, header_size);
     handshake_header[2] = 1; // type = ProtocolHandshake
     handshake_header[3] = 0; // reserved
-    std::memcpy(handshake_header.data() + 4, &data_size, sizeof(data_size));
+    writeLittleEndian(handshake_header.data() + 4, data_size);
 
     asio::write(socket, asio::buffer(handshake_header));
 
@@ -432,10 +445,10 @@ TEST(tcp_pubsub, oversized_response_header_does_not_crash_subscriber)
   constexpr uint64_t data_size   = 1;    // sizeof(ProtocolHandshakeMessage)
 
   std::vector<char> response_header(12, 0);
-  std::memcpy(response_header.data() + 0, &header_size, sizeof(header_size));
+  writeLittleEndian(response_header.data() + 0, header_size);
   response_header[2] = 1; // type = ProtocolHandshake
   response_header[3] = 0; // reserved
-  std::memcpy(response_header.data() + 4, &data_size, sizeof(data_size));
+  writeLittleEndian(response_header.data() + 4, data_size);
 
   asio::write(socket, asio::buffer(response_header));
 
@@ -468,10 +481,10 @@ TEST(tcp_pubsub, oversized_response_header_does_not_crash_subscriber)
   const uint64_t    payload_data_size   = message.size();
 
   std::vector<char> payload_header(12, 0);
-  std::memcpy(payload_header.data() + 0, &payload_header_size, sizeof(payload_header_size));
+  writeLittleEndian(payload_header.data() + 0, payload_header_size);
   payload_header[2] = 0; // type = RegularPayload
   payload_header[3] = 0; // reserved
-  std::memcpy(payload_header.data() + 4, &payload_data_size, sizeof(payload_data_size));
+  writeLittleEndian(payload_header.data() + 4, payload_data_size);
 
   asio::write(socket, asio::buffer(payload_header));
   asio::write(socket, asio::buffer(message));
