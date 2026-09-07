@@ -402,6 +402,88 @@ TEST(tcp_pubsub, oversized_handshake_header_does_not_crash)
   EXPECT_EQ(num_messages_received.get(), 1);
 }
 
+// Regression test for a heap use-after-free write in SubscriberSession_Impl::discardDataBetweenHeaderAndPayload():
+// a response header announcing a header_size larger than sizeof(TcpHeader), sent by a (potentially
+// malicious) publisher, makes the subscriber discard the extra bytes into a buffer that used to be
+// freed before the async read completed. This test acts as a raw "publisher" that sends such a
+// malformed response to a real Subscriber, and then verifies the subscriber is still alive and can
+// receive a subsequent, well-formed message.
+TEST(tcp_pubsub, oversized_response_header_does_not_crash_subscriber)
+{
+  using asio::ip::tcp;
+
+  asio::io_context server_io_context;
+  tcp::acceptor acceptor(server_io_context, tcp::endpoint(tcp::v4(), 1588));
+
+  // Create executor + subscriber, which will connect to our raw "publisher" below
+  std::shared_ptr<tcp_pubsub::Executor> executor = std::make_shared<tcp_pubsub::Executor>(1, tcp_pubsub::logger::logger_no_verbose_debug);
+  tcp_pubsub::Subscriber hello_world_subscriber(executor);
+  hello_world_subscriber.addSession("127.0.0.1", 1588);
+
+  tcp::socket socket = acceptor.accept();
+
+  // Drain the subscriber's handshake request (TcpHeader + 1-byte ProtocolHandshakeMessage)
+  std::vector<char> handshake_request(13);
+  asio::read(socket, asio::buffer(handshake_request));
+
+  // Send a malformed handshake response: header_size > sizeof(TcpHeader) (12 bytes), causing the
+  // subscriber to enter the "discard extra header bytes" code path.
+  constexpr uint16_t header_size = 1012; // sizeof(TcpHeader) == 12 -> 1000 extra bytes to discard
+  constexpr uint64_t data_size   = 1;    // sizeof(ProtocolHandshakeMessage)
+
+  std::vector<char> response_header(12, 0);
+  std::memcpy(response_header.data() + 0, &header_size, sizeof(header_size));
+  response_header[2] = 1; // type = ProtocolHandshake
+  response_header[3] = 0; // reserved
+  std::memcpy(response_header.data() + 4, &data_size, sizeof(data_size));
+
+  asio::write(socket, asio::buffer(response_header));
+
+  // Bytes filling the "extra header" region between the announced header_size and the actually
+  // understood TcpHeader. This is the buffer that used to be a dangling pointer (UAF write) before
+  // the fix.
+  std::vector<char> discard_bytes(static_cast<size_t>(header_size) - 12, 'A');
+  asio::write(socket, asio::buffer(discard_bytes));
+
+  // Handshake payload (protocol version)
+  const char protocol_version = 0;
+  asio::write(socket, asio::buffer(&protocol_version, 1));
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+  // If the fix regressed, the subscriber process would already have crashed (UAF) by now.
+  // Verify the subscriber is still fully functional by sending it a legitimate message.
+  atomic_signalable<int> num_messages_received(0);
+  std::string received_message;
+  std::function<void(const tcp_pubsub::CallbackData& callback_data)> callback_function =
+    [&received_message, &num_messages_received](const tcp_pubsub::CallbackData& callback_data)
+    {
+      received_message = std::string(callback_data.buffer_->data(), callback_data.buffer_->size());
+      ++num_messages_received;
+    };
+  hello_world_subscriber.setCallback(callback_function);
+
+  const std::string message = "Hello World after malformed response";
+  const uint16_t    payload_header_size = 12;
+  const uint64_t    payload_data_size   = message.size();
+
+  std::vector<char> payload_header(12, 0);
+  std::memcpy(payload_header.data() + 0, &payload_header_size, sizeof(payload_header_size));
+  payload_header[2] = 0; // type = RegularPayload
+  payload_header[3] = 0; // reserved
+  std::memcpy(payload_header.data() + 4, &payload_data_size, sizeof(payload_data_size));
+
+  asio::write(socket, asio::buffer(payload_header));
+  asio::write(socket, asio::buffer(message));
+
+  num_messages_received.wait_for([](int value) { return value > 0; }, std::chrono::seconds(1));
+
+  EXPECT_EQ(received_message, message);
+  EXPECT_EQ(num_messages_received.get(), 1);
+
+  socket.close();
+}
+
 // Test connecting to a list of possible publishers. The subscriber will connect to the first available publisher.
 TEST(tcp_pubsub, publisher_list_test)
 {
