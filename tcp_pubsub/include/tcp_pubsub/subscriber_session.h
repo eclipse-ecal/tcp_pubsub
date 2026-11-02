@@ -64,7 +64,9 @@ namespace tcp_pubsub
     /**
      * @brief Get the currently connected publisher address
      * 
-     * @return The address and port of the currently connected publisher
+     * @return The address and port of the currently connected publisher, or
+     *         an empty address and port 0 if the session is not connected or
+     *         has been canceled.
      */
     TCP_PUBSUB_EXPORT std::pair<std::string, uint16_t>              getConnectedPublisher() const;
 
@@ -75,11 +77,21 @@ namespace tcp_pubsub
      * If will automatically cause the SubscriberSession to remove itself from
      * the Subscriber it was created from. Once you release the shared_ptr to
      * it, the object will be deleted.
+     *
+     * Cancellation is requested immediately: isConnected() returns false and
+     * getConnectedPublisher() returns an empty address as soon as this method
+     * returns. Socket cleanup and session removal are serialized
+     * asynchronously with the session's I/O.
      */
     TCP_PUBSUB_EXPORT void        cancel();
 
     /**
      * @brief Returns whether this Session is connected to a Publisher
+     * 
+     * The state is tracked by the session's I/O, so it is safe to call from
+     * any thread. A lost connection is detected by the session's pending
+     * read and reported as not connected. Returns false once the session has
+     * been canceled.
      * 
      * @return True, if the Session is connected to a publisher.
      */
