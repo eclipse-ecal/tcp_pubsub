@@ -45,6 +45,7 @@ namespace tcp_pubsub
     , retries_left_           (max_reconnection_attempts)
     , retry_timer_            (*io_context_, std::chrono::seconds(1))
     , canceled_               (false)
+    , session_closed_         (false)
     , data_socket_            (*io_context_)
     , data_strand_            (*io_context_)
     , get_buffer_handler_     (get_buffer_handler)
@@ -68,8 +69,6 @@ namespace tcp_pubsub
     log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Deleting from thread " + thread_id + "...");
 #endif
 
-    cancel();
-
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "SubscriberSession " + endpointToString() + ": Deleted.");
 #endif
@@ -81,10 +80,10 @@ namespace tcp_pubsub
   
   void SubscriberSession_Impl::start()
   {
-    if (canceled_) return;
-
-    // Start resolving the endpoint given in the constructor
-    resolveEndpoint(0);
+    asio::post(data_strand_, [me = shared_from_this()]()
+    {
+      me->resolveEndpoint(0);
+    });
   }
 
   void SubscriberSession_Impl::resolveEndpoint(size_t publisher_list_index)
@@ -97,8 +96,9 @@ namespace tcp_pubsub
 
     resolver_.async_resolve(publisher_list_[publisher_list_index].first
                             , std::to_string(publisher_list_[publisher_list_index].second)
-                            , [me = shared_from_this(), publisher_list_index](asio::error_code ec, const asio::ip::tcp::resolver::results_type& resolved_endpoints)
+                            , asio::bind_executor(data_strand_, [me = shared_from_this(), publisher_list_index](asio::error_code ec, const asio::ip::tcp::resolver::results_type& resolved_endpoints)
                               {
+                                if (me->canceled_) return;
                                 if (ec)
                                 {
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
@@ -133,7 +133,7 @@ namespace tcp_pubsub
                                 {
                                   me->connectToEndpoint(resolved_endpoints, publisher_list_index);
                                 }
-                              });
+                              }));
   }
 
   void SubscriberSession_Impl::connectToEndpoint(const asio::ip::tcp::resolver::results_type& resolved_endpoints, size_t publisher_list_index)
@@ -154,8 +154,9 @@ namespace tcp_pubsub
 
     asio::async_connect(data_socket_
                         , *endpoint_sequence
-                        , [me = shared_from_this(), publisher_list_index](asio::error_code ec, const asio::ip::tcp::endpoint& /*endpoint*/)
+                        , asio::bind_executor(data_strand_, [me = shared_from_this(), publisher_list_index](asio::error_code ec, const asio::ip::tcp::endpoint& /*endpoint*/)
                           {
+                            if (me->canceled_) return;
                             if (ec)
                             {
                               me->log_(logger::LogLevel::Warning, "SubscriberSession " + me->localEndpointToString() + ": Failed connecting to publisher " + me->publisher_list_[publisher_list_index].first + ":" + std::to_string(me->publisher_list_[publisher_list_index].second) + ": " + ec.message());
@@ -183,15 +184,22 @@ namespace tcp_pubsub
 
                               // Store the connected publisher endpoint
                               {
+                                asio::error_code endpoint_ec;
+                                const auto local_endpoint = me->data_socket_.local_endpoint(endpoint_ec);
                                 const std::lock_guard<std::mutex> lock(me->connected_publisher_endpoint_mutex_);
-                                me->connected_publisher_endpoint_ = me->publisher_list_[publisher_list_index];
+                                // Checked under the lock, so a concurrent cancel() cannot be overwritten
+                                if (!me->canceled_)
+                                {
+                                  me->connected_publisher_endpoint_ = me->publisher_list_[publisher_list_index];
+                                  me->local_endpoint_ = endpoint_ec ? "?" : local_endpoint.address().to_string() + ":" + std::to_string(local_endpoint.port());
+                                }
                               }
 
                               // Start reading a package by reading the header length. Everything will
                               // unfold from there automatically.
                               me->sendProtokolHandshakeRequest();
                             }
-                          });
+                          }));
   }
 
   void SubscriberSession_Impl::sendProtokolHandshakeRequest()
@@ -236,10 +244,13 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::connectionFailedHandler()
   {
+    if (canceled_ || session_closed_) return;
+
     // Reset the connected publisher endpoint
     {
       const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
       connected_publisher_endpoint_ = std::make_pair("", 0);
+      local_endpoint_.clear();
     }
 
     {
@@ -263,21 +274,30 @@ namespace tcp_pubsub
 #endif
 
       // Retry connection after a short time
-      retry_timer_.async_wait([me = shared_from_this()](asio::error_code ec)
+      retry_timer_.expires_after(std::chrono::seconds(1));
+      retry_timer_.async_wait(asio::bind_executor(data_strand_, [me = shared_from_this()](asio::error_code ec)
                               {
+                                if (me->canceled_) return;
                                 if (ec)
                                 {
                                   me->log_(logger::LogLevel::Warning, "SubscriberSession " + me->endpointToString() + ": Waiting to reconnect failed: " + ec.message());
-                                  me->session_closed_handler_(me);
+                                  me->notifySessionClosed();
                                   return;
                                 }
                                 me->resolveEndpoint(0);
-                              });
+                              }));
     }
     else
     {
-      session_closed_handler_(shared_from_this());
+      notifySessionClosed();
     }
+  }
+
+  void SubscriberSession_Impl::notifySessionClosed()
+  {
+    if (session_closed_) return;
+    session_closed_ = true;
+    session_closed_handler_(shared_from_this());
   }
   
   /////////////////////////////////////////////
@@ -517,6 +537,21 @@ namespace tcp_pubsub
 
     if (already_canceled) return;
 
+    {
+      const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
+      connected_publisher_endpoint_ = std::make_pair("", 0);
+      local_endpoint_.clear();
+    }
+
+    // Socket cancellation must not overlap a composed read/connect operation.
+    asio::post(data_strand_, [me = shared_from_this()]()
+    {
+      me->cancelOnStrand();
+    });
+  }
+
+  void SubscriberSession_Impl::cancelOnStrand()
+  {
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "SubscriberSession " + endpointToString() + ": Cancelling...");
 #endif
@@ -560,17 +595,13 @@ namespace tcp_pubsub
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Successfully canceled resovler.");
 #endif
+    notifySessionClosed();
   }
 
   bool SubscriberSession_Impl::isConnected() const
   {
-    asio::error_code ec;
-    data_socket_.remote_endpoint(ec);
-
-    // If we can get the remote endpoint, we consider the socket as connected.
-    // Otherwise it is not connected.
-
-    return !static_cast<bool>(ec);
+    const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
+    return !canceled_ && !connected_publisher_endpoint_.first.empty();
   }
 
   std::string SubscriberSession_Impl::remoteEndpointToString() const
@@ -583,12 +614,8 @@ namespace tcp_pubsub
 
   std::string SubscriberSession_Impl::localEndpointToString() const
   {
-    asio::error_code ec;
-    auto local_endpoint = data_socket_.local_endpoint(ec);
-    if (ec)
-      return "?";
-    else
-      return local_endpoint.address().to_string() + ":" + std::to_string(local_endpoint.port());
+    const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
+    return local_endpoint_.empty() ? "?" : local_endpoint_;
   }
 
   std::string SubscriberSession_Impl::endpointToString() const
