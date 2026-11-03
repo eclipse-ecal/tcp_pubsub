@@ -39,7 +39,8 @@ namespace tcp_pubsub
     : is_running_     (false)
     , executor_       (executor)
     , acceptor_       (*executor_->executor_impl_->ioService())
-    , log_            (executor_->executor_impl_->logFunction())
+    , local_port_     (0)
+    , log_              (executor_->executor_impl_->logFunction())
   {}
 
   // Destructor
@@ -137,6 +138,18 @@ namespace tcp_pubsub
       }
     }
 
+    // Cache the bound endpoint. The acceptor must not be queried from other
+    // threads, as it is closed concurrently by cancel().
+    {
+      asio::error_code ec;
+      const asio::ip::tcp::endpoint bound_endpoint = acceptor_.local_endpoint(ec);
+      if (!ec)
+      {
+        local_port_            = bound_endpoint.port();
+        local_endpoint_string_ = toString(bound_endpoint);
+      }
+    }
+
     log_(logger::LogLevel::Info, "Publisher " + toString(endpoint) + ": Created publisher and waiting for clients.");
 
     is_running_ = true;
@@ -205,7 +218,9 @@ namespace tcp_pubsub
                           {
                             if (ec)
                             {
-                              me->log_(logger::LogLevel::Error, "Publisher " + me->localEndpointToString() + ": Error while waiting for subsriber: " + ec.message());
+                              // The acceptor is closed by cancel(), which is not an error
+                              if (ec != asio::error::operation_aborted)
+                                me->log_(logger::LogLevel::Error, "Publisher " + me->localEndpointToString() + ": Error while waiting for subsriber: " + ec.message());
                               return;
                             }
                             // Add the session to the session list before starting it, so a
@@ -325,19 +340,7 @@ namespace tcp_pubsub
 
   uint16_t Publisher_Impl::getPort() const
   {
-    if (is_running_)
-    {
-      asio::error_code ec;
-      auto local_endpoint = acceptor_.local_endpoint(ec);
-      if (!ec)
-        return local_endpoint.port();
-      else
-        return 0;
-    }
-    else
-    {
-      return 0;
-    }
+    return is_running_ ? local_port_ : 0;
   }
 
   size_t Publisher_Impl::getSubscriberCount() const
@@ -358,11 +361,6 @@ namespace tcp_pubsub
 
   std::string Publisher_Impl::localEndpointToString() const
   {
-    asio::error_code ec;
-    auto local_endpoint = acceptor_.local_endpoint(ec);
-    if (!ec)
-      return toString(local_endpoint);
-    else
-      return "?";
+    return local_endpoint_string_.empty() ? "?" : local_endpoint_string_;
   }
 }

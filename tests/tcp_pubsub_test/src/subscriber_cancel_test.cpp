@@ -202,12 +202,16 @@ TEST_F(SubscriberCancellationTest, CancelPendingRetry)
           && message.find("Failed connecting") != std::string::npos) ++failures;
     });
 
-  // Reserve a local port without listening, so connecting fails without DNS/network dependencies.
-  asio::ip::tcp::acceptor reserved(io);
-  reserved.open(asio::ip::tcp::v4());
-  reserved.bind({asio::ip::address_v4::loopback(), 0});
+  // Reserve a port that is free but not in use, so connecting fails fast on every
+  // platform. A bound-but-not-listening socket is not enough: BSD-based systems
+  // (e.g. macOS) silently drop the SYN instead of refusing the connection.
+  uint16_t unused_port = 0;
+  {
+    asio::ip::tcp::acceptor temporary(io, {asio::ip::address_v4::loopback(), 0});
+    unused_port = temporary.local_endpoint().port();
+  }
   tcp_pubsub::Subscriber subscriber(retry_executor);
-  auto session = subscriber.addSession("127.0.0.1", reserved.local_endpoint().port());
+  auto session = subscriber.addSession("127.0.0.1", unused_port);
   ASSERT_TRUE(WaitUntil([&]() { return failures.load() > 0; }));
   session->cancel();
   ASSERT_TRUE(WaitUntil([&]() { return subscriber.getSessions().empty(); }));
