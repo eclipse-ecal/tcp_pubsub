@@ -28,7 +28,8 @@ add_executable (${PROJECT_NAME}
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_14)
 
-target_include_directories(${PROJECT_NAME} PRIVATE ../../tcp_pubsub/src)
+target_include_directories(${PROJECT_NAME} PRIVATE $<TARGET_PROPERTY:tcp_pubsub_private,INCLUDE_DIRECTORIES>)
+target_compile_definitions(${PROJECT_NAME} PRIVATE $<TARGET_PROPERTY:tcp_pubsub_private,COMPILE_DEFINITIONS>)
 
 target_link_libraries (${PROJECT_NAME}
     tcp_pubsub_private
