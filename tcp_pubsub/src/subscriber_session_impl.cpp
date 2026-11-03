@@ -203,11 +203,7 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::sendProtokolHandshakeRequest()
   {
-    if (canceled_)
-    {
-      connectionFailedHandler();
-      return;
-    }
+    if (canceled_) return;
 
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug,  "SubscriberSession " + endpointToString() + ": Sending ProtocolHandshakeRequest.");
@@ -230,6 +226,7 @@ namespace tcp_pubsub
                 , asio::bind_executor(data_strand_,
                   [me = shared_from_this(), buffer](asio::error_code ec, std::size_t /*bytes_to_transfer*/)
                   {
+                    if (me->canceled_) return;
                     if (ec)
                     {
                       me->log_(logger::LogLevel::Warning, "SubscriberSession " + me->endpointToString() + ": Failed sending ProtocolHandshakeRequest: " + ec.message());
@@ -305,11 +302,7 @@ namespace tcp_pubsub
   
   void SubscriberSession_Impl::readHeaderLength()
   {
-    if (canceled_)
-    {
-      connectionFailedHandler();
-      return;
-    }
+    if (canceled_) return;
 
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose,  "SubscriberSession " + endpointToString() + ": Waiting for data...");
@@ -322,10 +315,11 @@ namespace tcp_pubsub
                      , asio::transfer_at_least(sizeof(header->header_size))
                      , asio::bind_executor(data_strand_, [me = shared_from_this(), header](asio::error_code ec, std::size_t /*length*/)
                                         {
+                                          if (me->canceled_) return;
                                           if (ec)
                                           {
                                             me->log_(logger::LogLevel::Error,  "SubscriberSession " + me->endpointToString() + ": Error reading header length: " + ec.message());
-                                            me->connectionFailedHandler();;
+                                            me->connectionFailedHandler();
                                             return;
                                           }
                                           me->readHeaderContent(header);
@@ -334,13 +328,9 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::readHeaderContent(const std::shared_ptr<TcpHeader>& header)
   {
-    if (canceled_)
-    {
-      connectionFailedHandler();
-      return;
-    }
+    if (canceled_) return;
 
-    if (header->header_size < sizeof(header->header_size))
+    if (header->header_size <  sizeof(header->header_size))
     {
       log_(logger::LogLevel::Error,  "SubscriberSession " + endpointToString() + ": Received header length of " + std::to_string(header->header_size) + ", which is less than the minimal header size.");
       connectionFailedHandler();
@@ -358,10 +348,11 @@ namespace tcp_pubsub
                     , asio::transfer_at_least(bytes_to_read_from_socket)
                     , asio::bind_executor(data_strand_, [me = shared_from_this(), header, bytes_to_discard_from_socket](asio::error_code ec, std::size_t /*length*/)
                                         {
+                                          if (me->canceled_) return;
                                           if (ec)
                                           {
                                             me->log_(logger::LogLevel::Error,  "SubscriberSession " + me->endpointToString() + ": Error reading header content: " + ec.message());
-                                            me->connectionFailedHandler();;
+                                            me->connectionFailedHandler();
                                             return;
                                           }
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
@@ -383,11 +374,7 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::discardDataBetweenHeaderAndPayload(const std::shared_ptr<TcpHeader>& header, uint16_t bytes_to_discard)
   {
-    if (canceled_)
-    {
-      connectionFailedHandler();
-      return;
-    }
+    if (canceled_) return;
 
     std::vector<char> data_to_discard;
     data_to_discard.resize(bytes_to_discard);
@@ -401,10 +388,11 @@ namespace tcp_pubsub
                     , asio::transfer_at_least(bytes_to_discard)
                     , asio::bind_executor(data_strand_, [me = shared_from_this(), header](asio::error_code ec, std::size_t /*length*/)
                                         {
+                                          if (me->canceled_) return;
                                           if (ec)
                                           {
                                             me->log_(logger::LogLevel::Error,  "SubscriberSession " + me->endpointToString() + ": Error discarding bytes after header: " + ec.message());
-                                            me->connectionFailedHandler();;
+                                            me->connectionFailedHandler();
                                             return;
                                           }
                                           me->readPayload(header);
@@ -413,11 +401,7 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::readPayload(const std::shared_ptr<TcpHeader>& header)
   {
-    if (canceled_)
-    {
-      connectionFailedHandler();
-      return;
-    }
+    if (canceled_) return;
 
     if (header->data_size == 0)
     {
@@ -445,10 +429,11 @@ namespace tcp_pubsub
                 , asio::transfer_at_least(le64toh(header->data_size))
                 , asio::bind_executor(data_strand_, [me = shared_from_this(), header, data_buffer](asio::error_code ec, std::size_t /*length*/)
                                     {
+                                      if (me->canceled_) return;
                                       if (ec)
                                       {
                                         me->log_(logger::LogLevel::Error,  "SubscriberSession " + me->endpointToString() + ": Error reading payload: " + ec.message());
-                                        me->connectionFailedHandler();;
+                                        me->connectionFailedHandler();
                                         return;
                                       }
 
@@ -478,11 +463,7 @@ namespace tcp_pubsub
                                         // Call the callback first, ...
                                         asio::post(me->data_strand_, [me, data_buffer, header]()
                                                               {
-                                                                if (me->canceled_)
-                                                                {
-                                                                  me->connectionFailedHandler();
-                                                                  return;
-                                                                }
+                                                                if (me->canceled_) return;
                                                                 me->synchronous_callback_(data_buffer, header);
                                                               });
 
@@ -557,23 +538,17 @@ namespace tcp_pubsub
     
     {
       asio::error_code ec;
-      data_socket_.close(ec);
+      data_socket_.shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+    }
+
+    {
+      asio::error_code ec;
+      data_socket_.close(ec); // Even if ec indicates an error, the socket is closed now (according to the documentation). Closing also cancels pending operations.
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       if (ec)
         log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Failed closing socket: " + ec.message());
       else
         log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Successfully closed socket.");
-#endif
-    }
-
-    {
-      asio::error_code ec;
-      data_socket_.cancel(ec); // Even if ec indicates an error, the socket is closed now (according to the documentation)
-#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
-      if (ec)
-        log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Failed cancelling socket: " + ec.message());
-      else
-        log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Successfully canceled socket.");
 #endif
     }
 

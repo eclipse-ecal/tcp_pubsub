@@ -208,14 +208,8 @@ namespace tcp_pubsub
                               me->log_(logger::LogLevel::Error, "Publisher " + me->localEndpointToString() + ": Error while waiting for subsriber: " + ec.message());
                               return;
                             }
-                            else
-                            {
-                              me->log_(logger::LogLevel::Info, "Publisher " + me->localEndpointToString() + ": Subscriber " + session->remoteEndpointToString() + " has connected.");
-                            }
-
-                            session->start();
-
-                            // Add the session to the session list
+                            // Add the session to the session list before starting it, so a
+                            // session closing immediately can always be found.
                             {
                               const std::lock_guard<std::mutex> publisher_sessions_lock_(me->publisher_sessions_mutex_);
                               me->publisher_sessions_.push_back(session);
@@ -223,6 +217,8 @@ namespace tcp_pubsub
                               me->log_(logger::LogLevel::Debug, "Publisher " + me->localEndpointToString() + ": Current subscriber count: " + std::to_string(me->publisher_sessions_.size()));
 #endif
                             }
+
+                            session->start();
 
                             // Accept the next session
                             me->acceptClient();
