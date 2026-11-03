@@ -55,11 +55,14 @@ namespace tcp_pubsub
   //////////////////////////////////////////////
   
   public:
+    // Startup is asynchronous; endpoint strings are populated on the strand.
     void start();
     void cancel();
 
   private:
+    void startOnStrand();
     void sessionClosedHandler();
+    void closeOnStrand();
   
   //////////////////////////////////////////////
   /// ProtocolHandshake
@@ -81,6 +84,7 @@ namespace tcp_pubsub
     void sendDataBuffer(const std::shared_ptr<std::vector<char>>& buffer);
   private:
     void sendBufferToClient(const std::shared_ptr<std::vector<char>>& buffer);
+    void startWriteOnStrand(const std::shared_ptr<std::vector<char>>& buffer);
 
   //////////////////////////////////////////////
   /// (Status-) getters
@@ -110,6 +114,11 @@ namespace tcp_pubsub
     // TCP Socket & Queue (protected by the strand!)
     asio::ip::tcp::socket     data_socket_;
     asio::io_context::strand  data_strand_;
+
+    // Endpoint strings cached in start(), so status queries never touch the socket from other threads
+    mutable std::mutex        endpoint_mutex_;
+    std::string               local_endpoint_string_;
+    std::string               remote_endpoint_string_;
 
     // Variable holding if we are currently sending any data and what data to send next
     std::mutex                         next_buffer_mutex_;

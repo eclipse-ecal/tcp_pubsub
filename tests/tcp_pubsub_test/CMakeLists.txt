@@ -20,6 +20,7 @@ set(sources
     src/tcp_pubsub_test.cpp
     src/executor_shutdown_test.cpp
     src/subscriber_cancel_test.cpp
+    src/publisher_cancel_test.cpp
 )
 
 add_executable (${PROJECT_NAME}

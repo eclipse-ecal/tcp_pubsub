@@ -66,9 +66,28 @@ namespace tcp_pubsub
   
   void PublisherSession::start()
   {
-    State expected = State::NotStarted;
-    if (!state_.compare_exchange_strong(expected, State::Handshaking))
+    asio::post(data_strand_, [me = shared_from_this()]()
+    {
+      me->startOnStrand();
+    });
+  }
+
+  void PublisherSession::startOnStrand()
+  {
+    State expected_state = State::NotStarted;
+    if (!state_.compare_exchange_strong(expected_state, State::Handshaking))
       return;
+
+    {
+      asio::error_code local_ec;
+      asio::error_code remote_ec;
+      const auto local_endpoint  = data_socket_.local_endpoint(local_ec);
+      const auto remote_endpoint = data_socket_.remote_endpoint(remote_ec);
+
+      const std::lock_guard<std::mutex> lock(endpoint_mutex_);
+      local_endpoint_string_  = local_ec  ? "?" : local_endpoint.address().to_string()  + ":" + std::to_string(local_endpoint.port());
+      remote_endpoint_string_ = remote_ec ? "?" : remote_endpoint.address().to_string() + ":" + std::to_string(remote_endpoint.port());
+    }
 
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose, "PublisherSession " + endpointToString() + ": Setting tcp::no_delay option.");
@@ -83,6 +102,10 @@ namespace tcp_pubsub
       if (ec) log_(logger::LogLevel::Warning, "PublisherSession " + endpointToString() + ": Failed setting tcp::no_delay option. The performance may suffer.");
     }
 
+    if (state_ == State::Canceled)
+      return;
+
+    log_(logger::LogLevel::Info, "Publisher " + localEndpointToString() + ": Subscriber " + remoteEndpointToString() + " has connected.");
     receiveTcpPacket();
   }
 
@@ -103,6 +126,21 @@ namespace tcp_pubsub
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "PublisherSession " + endpointToString() + ": Closing session.");
 #endif
+
+    // The socket must only be closed on the strand, so it cannot overlap with
+    // a pending read / write operation.
+    asio::post(data_strand_, [me = shared_from_this()]()
+    {
+      me->closeOnStrand();
+    });
+  }
+
+  void PublisherSession::closeOnStrand()
+  {
+    {
+      asio::error_code ec;
+      data_socket_.shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+    }
 
     {
       asio::error_code ec;
@@ -136,10 +174,11 @@ namespace tcp_pubsub
                     , asio::transfer_at_least(sizeof(header->header_size))
                     , asio::bind_executor(data_strand_, [me = shared_from_this(), header](asio::error_code ec, std::size_t /*length*/)
                                         {
+                                          if (me->state_ == State::Canceled) return;
                                           if (ec)
                                           {
                                             me->log_(logger::LogLevel::Error,  "PublisherSession " + me->endpointToString() + ": Error reading header length: " + ec.message());
-                                            me->sessionClosedHandler();;
+                                            me->sessionClosedHandler();
                                             return;
                                           }
                                           me->readHeaderContent(header);
@@ -169,10 +208,11 @@ namespace tcp_pubsub
               , asio::transfer_at_least(bytes_to_read_from_socket)
               , asio::bind_executor(data_strand_, [me = shared_from_this(), header, bytes_to_discard_from_socket](asio::error_code ec, std::size_t /*length*/)
                                   {
+                                    if (me->state_ == State::Canceled) return;
                                     if (ec)
                                     {
                                       me->log_(logger::LogLevel::Error,  "PublisherSession " + me->endpointToString() + ": Error reading header content: " + ec.message());
-                                      me->sessionClosedHandler();;
+                                      me->sessionClosedHandler();
                                       return;
                                     }
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
@@ -211,6 +251,7 @@ namespace tcp_pubsub
               , asio::transfer_at_least(bytes_to_discard)
               , asio::bind_executor(data_strand_, [me = shared_from_this(), header](asio::error_code ec, std::size_t /*length*/)
                                   {
+                                    if (me->state_ == State::Canceled) return;
                                     if (ec)
                                     {
                                       me->log_(logger::LogLevel::Error,  "PublisherSession " + me->endpointToString() + ": Error discarding bytes after header: " + ec.message());
@@ -244,10 +285,11 @@ namespace tcp_pubsub
               , asio::transfer_at_least(le64toh(header->data_size))
               , asio::bind_executor(data_strand_, [me = shared_from_this(), header, data_buffer](asio::error_code ec, std::size_t /*length*/)
                                   {
+                                    if (me->state_ == State::Canceled) return;
                                     if (ec)
                                     {
                                       me->log_(logger::LogLevel::Error,  "PublisherSession " + me->endpointToString() + ": Error reading payload: " + ec.message());
-                                      me->sessionClosedHandler();;
+                                      me->sessionClosedHandler();
                                       return;
                                     }
 
@@ -291,10 +333,11 @@ namespace tcp_pubsub
     ProtocolHandshakeMessage* handshake_message = reinterpret_cast<ProtocolHandshakeMessage*>(&(buffer->operator[](sizeof(TcpHeader))));
     handshake_message->protocol_version         = 0; // At the moment, we only support Version 0. 
 
-    // Send the buffer directly to the client
+    const std::lock_guard<std::mutex> next_buffer_lock(next_buffer_mutex_);
+    sending_in_progress_ = true;
     sendBufferToClient(buffer);
-    State expected = State::Handshaking;
-    state_.compare_exchange_strong(expected, State::Running);
+    State expected_state = State::Handshaking;
+    state_.compare_exchange_strong(expected_state, State::Running);
   }
 
   //////////////////////////////////////////////
@@ -340,6 +383,18 @@ namespace tcp_pubsub
     if (state_ == State::Canceled)
       return;
 
+    // Initiate the write on the strand, so it is serialized with reads and the close.
+    asio::dispatch(data_strand_, [me = shared_from_this(), buffer]()
+    {
+      if (me->state_ == State::Canceled)
+        return;
+
+      me->startWriteOnStrand(buffer);
+    });
+  }
+
+  void PublisherSession::startWriteOnStrand(const std::shared_ptr<std::vector<char>>& buffer)
+  {
     asio::async_write(data_socket_
                 , asio::buffer(*buffer)
                 , asio::bind_executor(data_strand_,
@@ -350,15 +405,15 @@ namespace tcp_pubsub
                     buffer_pointer_ss << "0x" << std::hex << buffer.get();
                     const std::string buffer_pointer_string = buffer_pointer_ss.str();
 #endif
+                    if (me->state_ == State::Canceled)
+                      return;
+
                     if (ec)
                     {
                       me->log_(logger::LogLevel::Warning, "PublisherSession " + me->endpointToString() + ": Failed sending data: " + ec.message());
                       me->sessionClosedHandler();
                       return;
                     }
-
-                    if (me->state_ == State::Canceled)
-                      return;
 
                     {
                       const std::lock_guard<std::mutex> next_buffer_lock(me->next_buffer_mutex_);
@@ -404,22 +459,14 @@ namespace tcp_pubsub
 
   std::string PublisherSession::localEndpointToString() const
   {
-    asio::error_code ec;
-    auto local_endpoint = data_socket_.local_endpoint(ec);
-    if (!ec)
-      return local_endpoint.address().to_string() + ":" + std::to_string(local_endpoint.port());
-    else
-      return "?";
+    const std::lock_guard<std::mutex> lock(endpoint_mutex_);
+    return local_endpoint_string_.empty() ? "?" : local_endpoint_string_;
   }
 
   std::string PublisherSession::remoteEndpointToString() const
   {
-    asio::error_code ec;
-    auto remote_endpoint = data_socket_.remote_endpoint(ec);
-    if (!ec)
-      return remote_endpoint.address().to_string() + ":" + std::to_string(remote_endpoint.port());
-    else
-      return "?";
+    const std::lock_guard<std::mutex> lock(endpoint_mutex_);
+    return remote_endpoint_string_.empty() ? "?" : remote_endpoint_string_;
   }
 
   std::string PublisherSession::endpointToString() const

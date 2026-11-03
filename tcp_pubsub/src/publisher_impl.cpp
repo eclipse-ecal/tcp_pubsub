@@ -216,7 +216,8 @@ namespace tcp_pubsub
                             }
                             me->log_(logger::LogLevel::Info, "Publisher " + me->localEndpointToString() + ": Subscriber " + session->remoteEndpointToString() + " has connected.");
 
-                            // Add the session to the session list
+                            // Add the session to the session list before starting it, so a
+                            // session closing immediately can always be found.
                             {
                               const std::lock_guard<std::mutex> publisher_sessions_lock_(me->publisher_sessions_mutex_);
                               if (!me->is_running_)
