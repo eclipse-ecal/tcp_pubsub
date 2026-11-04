@@ -223,11 +223,12 @@ TEST_F(SubscriberCancellationTest, CancelFromSynchronousCallback)
 {
   tcp_pubsub::Subscriber subscriber(executor);
   auto session = subscriber.addSession("127.0.0.1", acceptor.local_endpoint().port(), 0);
-  std::atomic<int> callbacks{0};
-  subscriber.setCallback([session, &callbacks](const tcp_pubsub::CallbackData&)
+  // Shared with the callback, which may still run while the test is being torn down
+  const auto callbacks = std::make_shared<std::atomic<int>>(0);
+  subscriber.setCallback([session, callbacks](const tcp_pubsub::CallbackData&)
   {
     session->cancel();
-    ++callbacks;
+    ++(*callbacks);
   }, true);
 
   asio::ip::tcp::socket socket(io);
@@ -241,7 +242,7 @@ TEST_F(SubscriberCancellationTest, CancelFromSynchronousCallback)
   asio::write(socket, buffers);
 
   ASSERT_TRUE(WaitUntil([&]() { return subscriber.getSessions().empty(); }));
-  EXPECT_EQ(callbacks.load(), 1);
+  EXPECT_EQ(callbacks->load(), 1);
   EXPECT_FALSE(session->isConnected());
 }
 
@@ -250,19 +251,26 @@ TEST_F(SubscriberCancellationTest, CancelWhileSynchronousCallbackIsActive)
 {
   tcp_pubsub::Subscriber subscriber(executor);
   auto session = subscriber.addSession("127.0.0.1", acceptor.local_endpoint().port(), 0);
-  std::mutex callback_mutex;
-  std::condition_variable callback_condition;
-  bool callback_entered = false;
-  bool release_callback = false;
-  std::atomic<int> callbacks{0};
 
-  subscriber.setCallback([&](const tcp_pubsub::CallbackData&)
+  // Shared with the callback, which still touches the mutex after incrementing
+  // the counter (when its lock is released). It must therefore outlive the test body.
+  struct CallbackState
   {
-    std::unique_lock<std::mutex> lock(callback_mutex);
-    callback_entered = true;
-    callback_condition.notify_one();
-    callback_condition.wait(lock, [&]() { return release_callback; });
-    ++callbacks;
+    std::mutex              mutex;
+    std::condition_variable condition;
+    bool                    entered  = false;
+    bool                    released = false;
+    std::atomic<int>        callbacks{0};
+  };
+  const auto state = std::make_shared<CallbackState>();
+
+  subscriber.setCallback([state](const tcp_pubsub::CallbackData&)
+  {
+    std::unique_lock<std::mutex> lock(state->mutex);
+    state->entered = true;
+    state->condition.notify_one();
+    state->condition.wait(lock, [&]() { return state->released; });
+    ++state->callbacks;
   }, true);
 
   asio::ip::tcp::socket socket(io);
@@ -277,8 +285,8 @@ TEST_F(SubscriberCancellationTest, CancelWhileSynchronousCallbackIsActive)
 
   bool entered = false;
   {
-    std::unique_lock<std::mutex> lock(callback_mutex);
-    entered = callback_condition.wait_for(lock, 5s, [&]() { return callback_entered; });
+    std::unique_lock<std::mutex> lock(state->mutex);
+    entered = state->condition.wait_for(lock, 5s, [&]() { return state->entered; });
   }
 
   session->cancel();
@@ -288,13 +296,13 @@ TEST_F(SubscriberCancellationTest, CancelWhileSynchronousCallbackIsActive)
     EXPECT_TRUE(session->getConnectedPublisher().first.empty());
   }
   {
-    const std::lock_guard<std::mutex> lock(callback_mutex);
-    release_callback = true;
+    const std::lock_guard<std::mutex> lock(state->mutex);
+    state->released = true;
   }
-  callback_condition.notify_one();
+  state->condition.notify_one();
 
   ASSERT_TRUE(entered);
   ASSERT_TRUE(WaitUntil([&]() { return subscriber.getSessions().empty(); }));
-  EXPECT_EQ(callbacks.load(), 1);
+  EXPECT_EQ(state->callbacks.load(), 1);
   EXPECT_FALSE(session->isConnected());
 }
