@@ -27,7 +27,14 @@ namespace tcp_pubsub
   {}
 
   Publisher::~Publisher()
-  { publisher_impl_->cancel(); }
+  {
+    // The publisher may have been moved from
+    if (publisher_impl_)
+    {
+      publisher_impl_->cancel();
+      publisher_impl_->releaseExecutor();
+    }
+  }
 
   uint16_t Publisher::getPort() const
     { return publisher_impl_->getPort(); }

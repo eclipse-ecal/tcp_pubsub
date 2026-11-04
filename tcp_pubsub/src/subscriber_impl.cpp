@@ -30,11 +30,12 @@ namespace tcp_pubsub
   // Constructor & Destructor
   ////////////////////////////////////////////////
   Subscriber_Impl::Subscriber_Impl(const std::shared_ptr<Executor>& executor)
-    : executor_                    (executor)
+    : executor_keepalive_          (executor)
+    , io_context_                  (executor->executor_impl_->ioService())
     , user_callback_is_synchronous_(true)
     , synchronous_user_callback_   ([](const auto&){})
     , callback_thread_stop_        (true)
-    , log_                         (executor_->executor_impl_->logFunction())
+    , log_                         (executor->executor_impl_->logFunction())
   {}
 
   // Destructor
@@ -109,7 +110,7 @@ namespace tcp_pubsub
     // ::std::make_shared here, as the constructor is private and make_shared
     // cannot access it. Thus, we crate the object manually with new.
     std::shared_ptr<SubscriberSession> subscriber_session(
-       new SubscriberSession(std::make_shared<SubscriberSession_Impl>(executor_->executor_impl_->ioService()
+       new SubscriberSession(std::make_shared<SubscriberSession_Impl>(io_context_
                                                                     , publisher_list
                                                                     , max_reconnection_attempts
                                                                     , get_free_buffer_handler
@@ -295,6 +296,11 @@ namespace tcp_pubsub
     // Delete the user callback
     synchronous_user_callback_    = [](const auto&){};
     user_callback_is_synchronous_ = true;
+  }
+
+  void Subscriber_Impl::releaseExecutor()
+  {
+    executor_keepalive_.reset();
   }
 
   std::string Subscriber_Impl::subscriberIdString() const

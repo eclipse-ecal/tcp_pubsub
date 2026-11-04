@@ -37,9 +37,10 @@ namespace tcp_pubsub
   // Constructor
   Publisher_Impl::Publisher_Impl(const std::shared_ptr<Executor>& executor)
     : is_running_     (false)
-    , executor_       (executor)
-    , acceptor_       (*executor_->executor_impl_->ioService())
-    , log_            (executor_->executor_impl_->logFunction())
+    , executor_keepalive_(executor)
+    , io_context_     (executor->executor_impl_->ioService())
+    , acceptor_       (*io_context_)
+    , log_            (executor->executor_impl_->logFunction())
   {}
 
   // Destructor
@@ -173,6 +174,11 @@ namespace tcp_pubsub
     }
   }
 
+  void Publisher_Impl::releaseExecutor()
+  {
+    executor_keepalive_.reset();
+  }
+
   void Publisher_Impl::acceptClient()
   {
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
@@ -199,7 +205,7 @@ namespace tcp_pubsub
               };
 
     // Create a new session
-    auto session = std::make_shared<PublisherSession>(executor_->executor_impl_->ioService(), publisher_session_closed_handler, log_);
+    auto session = std::make_shared<PublisherSession>(io_context_, publisher_session_closed_handler, log_);
     acceptor_.async_accept(session->getSocket()
                           , [session, me = shared_from_this()](asio::error_code ec)
                           {

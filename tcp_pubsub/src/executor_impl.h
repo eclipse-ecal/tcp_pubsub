@@ -3,7 +3,9 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstddef>
+#include <future>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -14,7 +16,7 @@
 
 namespace tcp_pubsub
 {
-  class Executor_Impl : public std::enable_shared_from_this<Executor_Impl>
+  class Executor_Impl
   {
   public:
     Executor_Impl(const logger::logger_t& log_function);
@@ -30,12 +32,30 @@ namespace tcp_pubsub
 
   public:
     void start(size_t thread_count);
-    void stop();
+
+    /**
+     * @brief Stops the worker threads and waits for them to terminate.
+     *
+     * Lets the io_context finish all work that is still pending (e.g. the
+     * closing of sockets that have been cancelled) and joins all worker
+     * threads. After this function has returned, no worker thread is running
+     * any more and no handler will be executed any more.
+     *
+     * If the work does not finish within a timeout, the io_context is
+     * stopped forcefully and the remaining handlers are discarded.
+     *
+     * If this function is called from one of the worker threads, it cannot
+     * wait for the workers (a thread cannot join itself). In that case the
+     * workers finish the pending work on their own and the threads are
+     * detached. The workers only reference state that they own themselves, so
+     * they are safe to outlive this object.
+     *
+     * Calling this function multiple times is safe.
+     */
+    void shutdown();
 
     std::shared_ptr<asio::io_context> ioService()   const;
     logger::logger_t                  logFunction() const;
-
-
 
   /////////////////////////////////////////
   // Member variables
@@ -46,6 +66,9 @@ namespace tcp_pubsub
     std::shared_ptr<asio::io_context>       io_context_;      /// global io service
 
     std::vector<std::thread>                thread_pool_;     /// Asio threadpool executing the io servic
+    std::vector<std::future<void>>          worker_finished_; /// One future per worker thread, that becomes ready as soon as the worker has left io_context::run(). Used for waiting for the workers with a timeout.
+    std::atomic<bool>                       shut_down_;       /// Whether shutdown() has been called already
+
     using work_guard_t = asio::executor_work_guard<asio::io_context::executor_type>;
     std::shared_ptr<work_guard_t>           dummy_work_;      /// Dummy work, so the io_context will never run out of work and shut down, even if there is no publisher or subscriber at the moment
   };

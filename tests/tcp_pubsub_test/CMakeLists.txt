@@ -17,6 +17,7 @@ find_package(GTest      REQUIRED)
 set(sources
     src/atomic_signalable.h
     src/tcp_pubsub_test.cpp
+    src/executor_shutdown_test.cpp
 )
 
 add_executable (${PROJECT_NAME}

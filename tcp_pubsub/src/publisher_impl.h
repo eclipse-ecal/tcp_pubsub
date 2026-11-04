@@ -51,6 +51,16 @@ namespace tcp_pubsub
     bool start(const std::string& address, uint16_t port);
     void cancel();
 
+    /**
+     * @brief Releases the reference to the Executor that is only needed to keep it alive.
+     *
+     * Called by the destructor of the public Publisher (after cancel()), so
+     * the Executor shuts down on the thread of the user and not on one of its
+     * own worker threads, when the Publisher was the last user of it.
+     * The Publisher must not be started or used after that.
+     */
+    void releaseExecutor();
+
   private:
     void acceptClient();
 
@@ -83,7 +93,11 @@ namespace tcp_pubsub
     std::atomic<bool> is_running_;                                              /// Indicates whether this publisher is running and can send data. May be false, if e.g. binding to the given address has failed.
 
     // Asio
-    const std::shared_ptr<Executor>                executor_;                   /// Global Executor (holding the io_context and thread pool)
+    // The executor is shared between all users of it. executor_keepalive_ only keeps it alive and is never
+    // read after the construction, so it can be reset by releaseExecutor() without synchronization.
+    // Everything that is used from the worker threads is cached in io_context_ and log_ instead, which never change.
+    std::shared_ptr<Executor>                      executor_keepalive_;         /// Keeps the executor alive while the publisher exists; reset by releaseExecutor().
+    const std::shared_ptr<asio::io_context>        io_context_;                 /// The io_context of the executor. Used for creating the acceptor and the sessions.
     asio::ip::tcp::acceptor                        acceptor_;                   /// Acceptor used for waiting for clients (i.e. subscribers)
                                                 
     // Logger                                    
