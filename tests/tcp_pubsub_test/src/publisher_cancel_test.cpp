@@ -87,8 +87,9 @@ TEST(PublisherCancellation, CancelDuringActiveTransmission)
 
     tcp_pubsub::Subscriber subscriber(executor);
     std::vector<std::shared_ptr<tcp_pubsub::SubscriberSession>> sessions;
-    std::atomic<int> received{0};
-    subscriber.setCallback([&received](const tcp_pubsub::CallbackData&) { ++received; });
+    // Shared with the callback, which may still run while the subscriber is being destroyed
+    const auto received = std::make_shared<std::atomic<int>>(0);
+    subscriber.setCallback([received](const tcp_pubsub::CallbackData&) { ++(*received); });
     for (int i = 0; i < 4; ++i)
     {
       sessions.push_back(subscriber.addSession("127.0.0.1", publisher->getPort(), 0));
@@ -103,7 +104,7 @@ TEST(PublisherCancellation, CancelDuringActiveTransmission)
         publisher->send(payload.data(), payload.size());
     });
 
-    const bool received_data = WaitUntil([&]() { return received > 0; });
+    const bool received_data = WaitUntil([&]() { return received->load() > 0; });
     if (!received_data)
     {
       stop_sending = true;
