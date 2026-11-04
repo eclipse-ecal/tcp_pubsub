@@ -13,10 +13,13 @@ set(CMAKE_FIND_PACKAGE_PREFER_CONFIG  TRUE)
 
 find_package(tcp_pubsub REQUIRED)
 find_package(GTest      REQUIRED)
+find_package(asio       REQUIRED)
 
 set(sources
     src/atomic_signalable.h
     src/tcp_pubsub_test.cpp
+    src/subscriber_cancel_test.cpp
+    src/publisher_cancel_test.cpp
 )
 
 add_executable (${PROJECT_NAME}
@@ -25,9 +28,13 @@ add_executable (${PROJECT_NAME}
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_14)
 
+target_include_directories(${PROJECT_NAME} PRIVATE $<TARGET_PROPERTY:tcp_pubsub_private,INCLUDE_DIRECTORIES>)
+target_compile_definitions(${PROJECT_NAME} PRIVATE $<TARGET_PROPERTY:tcp_pubsub_private,COMPILE_DEFINITIONS>)
+
 target_link_libraries (${PROJECT_NAME}
     tcp_pubsub_private
     GTest::gtest_main
+    asio::asio
 )
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${sources})

@@ -85,6 +85,8 @@ namespace tcp_pubsub
     // Asio
     const std::shared_ptr<Executor>                executor_;                   /// Global Executor (holding the io_context and thread pool)
     asio::ip::tcp::acceptor                        acceptor_;                   /// Acceptor used for waiting for clients (i.e. subscribers)
+    uint16_t                                       local_port_;                 /// Port the acceptor is bound to. Set once in start(), before any handler runs.
+    std::string                                    local_endpoint_string_;      /// Endpoint the acceptor is bound to. Set once in start(), before any handler runs.
                                                 
     // Logger                                    
     const logger::logger_t                         log_;                        /// Function for logging

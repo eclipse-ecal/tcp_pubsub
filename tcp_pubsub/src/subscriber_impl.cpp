@@ -145,7 +145,11 @@ namespace tcp_pubsub
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       log_(logger::LogLevel::DebugVerbose, "Subscriber " + subscriberIdString() + ": Stopping old callback thread...");
 #endif
-      callback_thread_stop_ = true;
+      // Set the flag while holding the mutex, so the callback thread cannot miss the wakeup between checking its predicate and going to sleep
+      {
+        const std::lock_guard<std::mutex> callback_lock(last_callback_data_mutex_);
+        callback_thread_stop_ = true;
+      }
       last_callback_data_cv_.notify_all();
 
       // Join or detach the old thread. We cannot join a thread from it's own
@@ -276,7 +280,11 @@ namespace tcp_pubsub
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       log_(logger::LogLevel::DebugVerbose, "Subscriber " + subscriberIdString() + ": Stopping callback thread...");
 #endif
-      callback_thread_stop_ = true;
+      // Set the flag while holding the mutex, so the callback thread cannot miss the wakeup between checking its predicate and going to sleep
+      {
+        const std::lock_guard<std::mutex> callback_lock(last_callback_data_mutex_);
+        callback_thread_stop_ = true;
+      }
       last_callback_data_cv_.notify_all();
 
       // Join or detach the old thread. We cannot join a thread from it's own
