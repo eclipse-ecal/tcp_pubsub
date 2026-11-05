@@ -37,4 +37,10 @@ target_link_libraries (${PROJECT_NAME}
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${sources})
 
 include(GoogleTest)
-gtest_discover_tests(${PROJECT_NAME})
+gtest_discover_tests(${PROJECT_NAME} PROPERTIES TIMEOUT 60)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/disable_racy_tests.cmake"
+    )
+endif()

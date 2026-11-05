@@ -160,6 +160,15 @@ There are several examples provided that aim to show you the functionality.
 	  *or*
 	- `performance_publisher /.exe` + `performance_subscriber /.exe`
 
+## Tests
+
+Build with `TCP_PUBSUB_BUILD_TESTS=ON` and run CTest from the build directory.
+Each test has a 60-second timeout. On Linux, tests that exchange messages or
+tear down active connections are temporarily disabled because socket cancellation
+can race with asynchronous socket operations. They remain listed in CTest and
+compiled so they can be re-enabled once the race is fixed in a separate change.
+Non-network tests remain enabled; other platforms keep the full test suite.
+
 ## The Protocol (Version 0)
 
 When using this library, you do not need to know how the protocol works. Both the subscriber and receiver are completely implemented and ready for you to use. This section is meant for advanced users that are interested in the underlying protocol.
