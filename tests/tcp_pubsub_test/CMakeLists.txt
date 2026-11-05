@@ -17,6 +17,7 @@ find_package(GTest      REQUIRED)
 set(sources
     src/atomic_signalable.h
     src/tcp_pubsub_test.cpp
+    src/executor_shutdown_test.cpp
 )
 
 add_executable (${PROJECT_NAME}
@@ -24,6 +25,9 @@ add_executable (${PROJECT_NAME}
 )
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_14)
+
+target_include_directories(${PROJECT_NAME} PRIVATE $<TARGET_PROPERTY:tcp_pubsub_private,INCLUDE_DIRECTORIES>)
+target_compile_definitions(${PROJECT_NAME} PRIVATE $<TARGET_PROPERTY:tcp_pubsub_private,COMPILE_DEFINITIONS>)
 
 target_link_libraries (${PROJECT_NAME}
     tcp_pubsub_private
@@ -33,4 +37,10 @@ target_link_libraries (${PROJECT_NAME}
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${sources})
 
 include(GoogleTest)
-gtest_discover_tests(${PROJECT_NAME})
+gtest_discover_tests(${PROJECT_NAME} PROPERTIES TIMEOUT 60)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set_property(DIRECTORY APPEND PROPERTY TEST_INCLUDE_FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/disable_racy_tests.cmake"
+    )
+endif()

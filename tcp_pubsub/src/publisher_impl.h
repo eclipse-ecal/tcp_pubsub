@@ -83,8 +83,9 @@ namespace tcp_pubsub
     std::atomic<bool> is_running_;                                              /// Indicates whether this publisher is running and can send data. May be false, if e.g. binding to the given address has failed.
 
     // Asio
-    const std::shared_ptr<Executor>                executor_;                   /// Global Executor (holding the io_context and thread pool)
+    const std::shared_ptr<asio::io_context>        io_context_;                 /// The io_context of the executor. Used for creating the acceptor and the sessions.
     asio::ip::tcp::acceptor                        acceptor_;                   /// Acceptor used for waiting for clients (i.e. subscribers)
+    std::mutex                                    acceptor_mutex_;             /// Serializes acceptance and cancellation.
                                                 
     // Logger                                    
     const logger::logger_t                         log_;                        /// Function for logging
