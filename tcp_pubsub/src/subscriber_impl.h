@@ -57,16 +57,6 @@ class Subscriber_Impl : public std::enable_shared_from_this<Subscriber_Impl>
   public:
     void cancel();
 
-    /**
-     * @brief Releases the reference to the Executor that is only needed to keep it alive.
-     *
-     * Called by the destructor of the public Subscriber (after cancel()), so
-     * the Executor shuts down on the thread of the user and not on one of its
-     * own worker threads, when the Subscriber was the last user of it.
-     * No sessions must be added after that.
-     */
-    void releaseExecutor();
-
   private:
     std::string subscriberIdString() const;
 
@@ -75,10 +65,6 @@ class Subscriber_Impl : public std::enable_shared_from_this<Subscriber_Impl>
   ////////////////////////////////////////////////
   private:
     // Asio
-    // The executor is shared between all users of it. executor_keepalive_ only keeps it alive and is never
-    // read after the construction, so it can be reset by releaseExecutor() without synchronization.
-    // Everything that is used from the worker threads is cached in io_context_ and log_ instead, which never change.
-    std::shared_ptr<Executor>                       executor_keepalive_;       /// Keeps the executor alive while the subscriber exists; reset by releaseExecutor().
     const std::shared_ptr<asio::io_context>         io_context_;               /// The io_context of the executor. Used for creating the sessions.
 
     // List of all Sessions

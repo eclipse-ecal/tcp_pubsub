@@ -17,7 +17,8 @@
 namespace tcp_pubsub
 {
   Publisher::Publisher(const std::shared_ptr<Executor>& executor, const std::string& address, uint16_t port)
-    : publisher_impl_(std::make_shared<Publisher_Impl>(executor))
+    : executor_(executor)
+    , publisher_impl_(std::make_shared<Publisher_Impl>(executor))
   {
     publisher_impl_->start(address, port);
   }
@@ -32,8 +33,18 @@ namespace tcp_pubsub
     if (publisher_impl_)
     {
       publisher_impl_->cancel();
-      publisher_impl_->releaseExecutor();
     }
+  }
+
+  Publisher& Publisher::operator=(Publisher&& other) noexcept
+  {
+    if (this != &other)
+    {
+      Publisher previous(std::move(other));
+      executor_.swap(previous.executor_);
+      publisher_impl_.swap(previous.publisher_impl_);
+    }
+    return *this;
   }
 
   uint16_t Publisher::getPort() const

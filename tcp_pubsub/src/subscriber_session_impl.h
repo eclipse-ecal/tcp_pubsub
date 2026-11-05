@@ -87,6 +87,9 @@ class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSes
   /// Member variables
   //////////////////////////////////////////////
   private:
+    // Must outlive the Asio members, even after the session's callbacks are destroyed.
+    const std::shared_ptr<asio::io_context> io_context_;
+
     // Endpoint and resolver given by / constructed by the constructor
     std::vector<std::pair<std::string, uint16_t>> publisher_list_;              ///< The list of endpoints that this session will connect to. The first reachable will be used
     asio::ip::tcp::resolver resolver_;

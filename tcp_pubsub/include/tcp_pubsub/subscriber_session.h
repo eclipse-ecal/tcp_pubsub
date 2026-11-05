@@ -28,6 +28,12 @@ namespace tcp_pubsub
    * Subscriber.
    * 
    * A SubscriberSession is created by Subscriber::addSession().
+   *
+   * A retained handle remains valid after its Subscriber is destroyed, but
+   * the session is cancelled and cannot receive new messages. It keeps the
+   * context and logger alive, not the Executor's worker threads. Destroying
+   * the handle may invoke the logger; state captured by the logger must
+   * therefore outlive all session handles.
    */
   class SubscriberSession
   {

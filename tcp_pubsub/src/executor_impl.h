@@ -5,7 +5,6 @@
 
 #include <atomic>
 #include <cstddef>
-#include <future>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -41,8 +40,8 @@ namespace tcp_pubsub
      * threads. After this function has returned, no worker thread is running
      * any more and no handler will be executed any more.
      *
-     * If the work does not finish within a timeout, the io_context is
-     * stopped forcefully and the remaining handlers are discarded.
+     * There is no forced-stop timeout: running handlers must return and
+     * pending asynchronous operations must finish or be cancelled.
      *
      * If this function is called from one of the worker threads, it cannot
      * wait for the workers (a thread cannot join itself). In that case the
@@ -66,7 +65,6 @@ namespace tcp_pubsub
     std::shared_ptr<asio::io_context>       io_context_;      /// global io service
 
     std::vector<std::thread>                thread_pool_;     /// Asio threadpool executing the io servic
-    std::vector<std::future<void>>          worker_finished_; /// One future per worker thread, that becomes ready as soon as the worker has left io_context::run(). Used for waiting for the workers with a timeout.
     std::atomic<bool>                       shut_down_;       /// Whether shutdown() has been called already
 
     using work_guard_t = asio::executor_work_guard<asio::io_context::executor_type>;

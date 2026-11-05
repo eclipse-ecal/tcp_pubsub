@@ -66,6 +66,10 @@ namespace tcp_pubsub
   
   void PublisherSession::start()
   {
+    State expected = State::NotStarted;
+    if (!state_.compare_exchange_strong(expected, State::Handshaking))
+      return;
+
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose, "PublisherSession " + endpointToString() + ": Setting tcp::no_delay option.");
 #endif
@@ -78,8 +82,6 @@ namespace tcp_pubsub
       data_socket_.set_option(asio::ip::tcp::no_delay(true), ec);
       if (ec) log_(logger::LogLevel::Warning, "PublisherSession " + endpointToString() + ": Failed setting tcp::no_delay option. The performance may suffer.");
     }
-
-    state_ = State::Handshaking;
 
     receiveTcpPacket();
   }
@@ -291,9 +293,8 @@ namespace tcp_pubsub
 
     // Send the buffer directly to the client
     sendBufferToClient(buffer);
-    const State old_state = state_.exchange(State::Running);
-    if (old_state != State::Handshaking)
-      state_ = old_state;
+    State expected = State::Handshaking;
+    state_.compare_exchange_strong(expected, State::Running);
   }
 
   //////////////////////////////////////////////

@@ -30,8 +30,7 @@ namespace tcp_pubsub
   // Constructor & Destructor
   ////////////////////////////////////////////////
   Subscriber_Impl::Subscriber_Impl(const std::shared_ptr<Executor>& executor)
-    : executor_keepalive_          (executor)
-    , io_context_                  (executor->executor_impl_->ioService())
+    : io_context_                  (executor->executor_impl_->ioService())
     , user_callback_is_synchronous_(true)
     , synchronous_user_callback_   ([](const auto&){})
     , callback_thread_stop_        (true)
@@ -296,11 +295,6 @@ namespace tcp_pubsub
     // Delete the user callback
     synchronous_user_callback_    = [](const auto&){};
     user_callback_is_synchronous_ = true;
-  }
-
-  void Subscriber_Impl::releaseExecutor()
-  {
-    executor_keepalive_.reset();
   }
 
   std::string Subscriber_Impl::subscriberIdString() const

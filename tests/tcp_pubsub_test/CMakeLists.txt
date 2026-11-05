@@ -26,6 +26,16 @@ add_executable (${PROJECT_NAME}
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_14)
 
+target_include_directories(${PROJECT_NAME} PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tcp_pubsub/src"
+)
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    ASIO_STANDALONE
+    ASIO_DISABLE_VISIBILITY
+    _WIN32_WINNT=0x0601
+)
+
 target_link_libraries (${PROJECT_NAME}
     tcp_pubsub_private
     GTest::gtest_main

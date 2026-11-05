@@ -4,11 +4,10 @@
 #include "executor_impl.h"
 
 #include <algorithm>
-#include <chrono>
 #include <cstddef>
-#include <future>
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
@@ -20,12 +19,6 @@
 
 namespace tcp_pubsub
 {
-  namespace
-  {
-    // How long shutdown() waits for pending work to finish, before the io_context is stopped forcefully.
-    constexpr std::chrono::seconds shutdown_timeout{5};
-  }
-
   Executor_Impl::Executor_Impl(const logger::logger_t& log_function)
     : log_(log_function)
     , io_context_(std::make_shared<asio::io_context>())
@@ -57,20 +50,22 @@ namespace tcp_pubsub
 
   void Executor_Impl::start(size_t thread_count)
   {
+    if (thread_count == 0)
+    {
+      log_(logger::LogLevel::Error, "Executor: At least one worker thread is required.");
+      throw std::invalid_argument("Executor: At least one worker thread is required.");
+    }
+
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "Executor: Starting Executor with " + std::to_string(thread_count) + " threads.");
 #endif
     thread_pool_.reserve(thread_count);
-    worker_finished_.reserve(thread_count);
 
     for (size_t i = 0; i < thread_count; i++)
     {
-      std::promise<void> finished;
-      std::future<void>  finished_future = finished.get_future();
-
       // The worker must not keep the Executor_Impl alive, so it only captures
       // what it needs itself.
-      thread_pool_.emplace_back([io_context = io_context_, log = log_, finished = std::move(finished)]() mutable
+      thread_pool_.emplace_back([io_context = io_context_, log = log_]()
                                 {
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
                                   std::stringstream ss;
@@ -88,9 +83,7 @@ namespace tcp_pubsub
                                   log(logger::LogLevel::Debug, "Executor: IoService: Shutdown of thread " + thread_id);
 #endif
 
-                                  finished.set_value();
                                 });
-      worker_finished_.push_back(std::move(finished_future));
     }
   }
 
@@ -122,19 +115,7 @@ namespace tcp_pubsub
         thread.detach();
       }
       thread_pool_.clear();
-      worker_finished_.clear();
       return;
-    }
-
-    // Wait for all workers to leave io_context::run(), i.e. to finish the pending work
-    const auto deadline = std::chrono::steady_clock::now() + shutdown_timeout;
-    const bool finished = std::all_of(worker_finished_.begin(), worker_finished_.end(),
-                                      [&deadline](const std::future<void>& worker_finished) { return worker_finished.wait_until(deadline) == std::future_status::ready; });
-
-    if (!finished)
-    {
-      log_(logger::LogLevel::Warning, "Executor: Pending work did not finish within " + std::to_string(shutdown_timeout.count()) + " seconds. Stopping the executor forcefully.");
-      io_context_->stop();
     }
 
     for (std::thread& thread : thread_pool_)
@@ -143,7 +124,6 @@ namespace tcp_pubsub
         thread.join();
     }
     thread_pool_.clear();
-    worker_finished_.clear();
 
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "Executor: All IoService threads have shut down successfully.");

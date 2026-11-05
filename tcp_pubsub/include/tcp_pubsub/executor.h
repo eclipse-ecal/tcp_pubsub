@@ -31,12 +31,20 @@ namespace tcp_pubsub
    *  - A logging function that gets used when output has to be logged.
    *
    * A Publisher and a Subscriber share ownership of their Executor, so it
-   * keeps running until all of them have been destroyed. The Executor shuts
+   * keeps running until all public handles have been destroyed or reassigned.
+   * Publishers and Subscribers are move-only; an Executor can neither be
+   * copied nor moved. The Executor shuts
    * down when its last owner is destroyed. This is a blocking operation: The
    * destructor waits until the pending work has been completed (e.g. closing
    * the sockets of canceled sessions) and all threads have terminated. After
-   * it has returned, no thread of the Executor is running any more and the
-   * logger will not be called again.
+   * it has returned, no thread of the Executor is running any more. There is
+   * no forced-stop timeout; running callbacks must return for shutdown to
+   * complete.
+   *
+   * Retained SubscriberSession handles are cancelled when their Subscriber
+   * is destroyed. They remain valid and keep their context and logger alive,
+   * but do not keep the Executor running. Releasing them can still invoke the
+   * logger, so state captured by the logger must outlive all session handles.
    *
    * If the last owner is released from within one of the threads of the
    * Executor itself (e.g. from a callback), the Executor cannot wait for its
@@ -54,6 +62,9 @@ namespace tcp_pubsub
      *
      * @param[in] thread_count
      *              The amount of threads that shall execute workload
+     *              (must be greater than zero).
+     *
+     * @throws std::invalid_argument if thread_count is zero.
      *
      * @param[in] log_function
      *              A function (LogLevel, string)->void that is used for logging.

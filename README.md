@@ -91,6 +91,31 @@ int main()
 }
 ```
 
+## Lifetime and shutdown
+
+Executors can neither be copied nor moved; share them through `std::shared_ptr`.
+Publishers and subscribers are move-only and keep their executor alive directly.
+Moving a publisher transfers its connections; moving a subscriber transfers its
+sessions and callback. Moving does not cancel the transferred operations.
+Move assignment cancels the destination's old operations before releasing their
+executor. To create an independent publisher or subscriber, construct a new one;
+its connections and callback are configured separately.
+
+Executor destruction on a non-worker thread waits for canceled operations and
+running callbacks to finish, then joins all workers. There is no forced-stop
+timeout, so callbacks must return for shutdown to complete. Executors require at
+least one worker thread.
+
+If the last executor owner is released on one of its own workers, shutdown cannot
+wait for that worker. The workers finish pending work independently in that case.
+
+A retained `SubscriberSession` handle is canceled when its subscriber is destroyed,
+but remains valid. It keeps its context and logger alive without keeping worker
+threads running. Releasing such a handle may still invoke the logger, so anything
+captured by the logger must outlive all session handles. Without retained handles
+or callback-owned executor references, tearing down the public handles completes
+shutdown before returning and no further logging occurs.
+
 ## CMake Options
 
 You can set the following CMake Options to control how tcp_pubsub is built:
