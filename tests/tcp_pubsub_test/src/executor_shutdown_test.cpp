@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 #include <thread>
-#include <utility>
+#include <type_traits>
 
 #include <gtest/gtest.h>
 #include <tcp_pubsub/executor.h>
@@ -138,39 +138,9 @@ TEST(ExecutorShutdown, LastReferenceIsReleasedOnWorkerThread)
   EXPECT_TRUE(WaitUntil([&]() { return log_counter.use_count() == 1; })) << "The executor has not been torn down.";
 }
 
-// A moved-from executor must be safe to destroy.
-TEST(ExecutorShutdown, DestroyingMovedFromExecutorIsSafe)
-{
-  const LogCounter log_counter = std::make_shared<std::atomic<int>>(0);
-
-  {
-    auto first  = std::make_unique<tcp_pubsub::Executor>(1, makeCountingLogger(log_counter));
-    tcp_pubsub::Executor second(std::move(*first));
-    first.reset();
-
-    // The moved-to executor still owns the logger
-    EXPECT_GT(log_counter.use_count(), 1);
-  }
-
-  EXPECT_EQ(log_counter.use_count(), 1);
-}
-
-// Move-assigning to an executor must shut down the executor that gets replaced.
-TEST(ExecutorShutdown, MoveAssignmentShutsDownReplacedExecutor)
-{
-  const LogCounter replaced_counter = std::make_shared<std::atomic<int>>(0);
-  const LogCounter other_counter    = std::make_shared<std::atomic<int>>(0);
-
-  {
-    tcp_pubsub::Executor replaced(1, makeCountingLogger(replaced_counter));
-    tcp_pubsub::Executor other   (1, makeCountingLogger(other_counter));
-    EXPECT_GT(replaced_counter.use_count(), 1);
-
-    replaced = std::move(other);
-
-    EXPECT_EQ(replaced_counter.use_count(), 1) << "The replaced executor has not been shut down.";
-    EXPECT_GT(other_counter.use_count(), 1);
-  }
-
-  EXPECT_EQ(other_counter.use_count(), 1);
-}
+// An executor owns running threads, so it must neither be copied nor moved.
+// Users share it via std::shared_ptr.
+static_assert(!std::is_copy_constructible<tcp_pubsub::Executor>::value,  "Executor must not be copy constructible");
+static_assert(!std::is_copy_assignable<tcp_pubsub::Executor>::value,     "Executor must not be copy assignable");
+static_assert(!std::is_move_constructible<tcp_pubsub::Executor>::value,  "Executor must not be move constructible");
+static_assert(!std::is_move_assignable<tcp_pubsub::Executor>::value,     "Executor must not be move assignable");

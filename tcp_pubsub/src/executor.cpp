@@ -5,7 +5,6 @@
 
 #include <cstddef>
 #include <memory>
-#include <utility>
 
 #include "executor_impl.h"
 #include "tcp_pubsub/tcp_pubsub_logger.h"
@@ -20,24 +19,6 @@ namespace tcp_pubsub
 
   Executor::~Executor()
   {
-    // The executor may have been moved from
-    if (executor_impl_)
-      executor_impl_->shutdown();
+    executor_impl_->shutdown();
   }
-
-  // Move
-  Executor& Executor::operator=(Executor&& other) noexcept
-  {
-    if (this != &other)
-    {
-      // The executor that gets replaced has to be shut down properly
-      if (executor_impl_)
-        executor_impl_->shutdown();
-
-      executor_impl_ = std::move(other.executor_impl_);
-    }
-    return *this;
-  }
-
-  Executor::Executor(Executor&&) noexcept                 = default;
 }

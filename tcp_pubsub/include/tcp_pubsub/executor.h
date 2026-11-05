@@ -42,8 +42,8 @@ namespace tcp_pubsub
    * Executor itself (e.g. from a callback), the Executor cannot wait for its
    * threads. They finish the pending work on their own in that case.
    *
-   * A moved-from Executor can safely be destroyed or assigned to. Move-
-   * assigning to an Executor shuts down the Executor that gets replaced.
+   * An Executor can neither be copied nor moved. Create it with
+   * std::make_shared and pass the shared_ptr around.
    *
    */
   class Executor
@@ -66,8 +66,8 @@ namespace tcp_pubsub
     Executor& operator=(const Executor&) = delete;
 
     // Move
-    TCP_PUBSUB_EXPORT Executor& operator=(Executor&&) noexcept;
-    TCP_PUBSUB_EXPORT Executor(Executor&&) noexcept;
+    Executor& operator=(Executor&&)      = delete;
+    Executor(Executor&&)                 = delete;
 
   private:
     friend ::tcp_pubsub::Publisher_Impl;
