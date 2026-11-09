@@ -1,7 +1,7 @@
 # tcp_pubsub rewrite – Benchmark (PERF-1)
 
 Status: end-to-end harness **and** Google Benchmark micro-benchmarks implemented; baselines of the
-current implementation recorded for **Windows** and **Linux (WSL2)**
+v2.0.1 implementation recorded for **Windows** and **Linux (WSL2)**
 ([baseline/README.md](baseline/README.md)). A native Linux, an arm64 and a macOS baseline are still
 missing.
 Requirements this serves: PERF-1 (baseline first), PERF-2 (not worse than baseline),
@@ -13,8 +13,9 @@ PERF-3/4/5/7, QA-6, ROB-2 in [01-requirements.md](01-requirements.md).
 |---|---|---|
 | End-to-end harness | `benchmarks/tcp_pubsub_benchmark/` | Paced latency, throughput, fan-out, scale, idle cost, slow consumer, resources. Custom code, no benchmark library: Google Benchmark's iteration model cannot express paced multi-thread scenarios or per-message percentiles. |
 | Micro-benchmarks | `benchmarks/tcp_pubsub_micro_benchmark/` | Google Benchmark (submodule `thirdparty/benchmark/benchmark`, pinned to v1.9.5). Per-call cost of the library API (`Api_*`) and implementation-independent reference floors (`Floor_*`) that put the numbers into context. See section 7. |
-| Library adapter | `tcp_pubsub_benchmark/src/adapter.h`, `adapter_v1.cpp` | The **only** code that knows a concrete tcp_pubsub API, shared by both benchmark programs. Benchmarking the rewrite means adding `adapter_<name>.cpp` and building with `-DTCP_PUBSUB_BENCHMARK_ADAPTER=<name>`; scenarios and benchmarks stay identical, so results are comparable. |
-| Baseline results | `docs/rewrite/baseline/` | Recorded numbers of the current implementation (JSON + interpretation). |
+| Library adapter | `tcp_pubsub_benchmark/src/adapter.h`, `adapter_v2.cpp` | The **only** code that knows a concrete tcp_pubsub API, shared by both benchmark programs. The v2 adapter implements the 2.0.1 API; benchmarking the new API means adding `adapter_v3.cpp` and selecting `-DTCP_PUBSUB_BENCHMARK_ADAPTER=v3`. Scenarios and benchmarks stay identical. |
+| Frozen implementation | [legacy/v2/](../../legacy/v2/README.md) | Unmodified library and original tests from `master` at `971382ee3c62ef02795f16d5aa51aa9b508b58e7` (2.0.1). |
+| Baseline results | `docs/rewrite/baseline/` | Recorded numbers of v2.0.1 (JSON + interpretation). Historical `v1` file names are retained; that was an adapter label, not release 1.x. |
 
 ## 2. Building and running
 
@@ -22,35 +23,60 @@ Always use a **Release** build, on a quiet machine (close other applications, AC
 no antivirus scan; on laptops use a high-performance power plan).
 
 ```powershell
-cmake -S . -B _build/bench -G "Visual Studio 17 2022" -A x64 `
-      -DTCP_PUBSUB_BUILD_BENCHMARKS=ON -DTCP_PUBSUB_BUILD_SAMPLES=OFF -DTCP_PUBSUB_BUILD_TESTS=OFF
-cmake --build _build/bench --config Release --target tcp_pubsub_benchmark tcp_pubsub_micro_benchmark
-_build/bench/benchmarks/tcp_pubsub_benchmark/Release/tcp_pubsub_benchmark.exe --list
-_build/bench/benchmarks/tcp_pubsub_benchmark/Release/tcp_pubsub_benchmark.exe `
-      --scenario all --duration 10 --repeat 3 --json result.json --label "my run"
-_build/bench/benchmarks/tcp_pubsub_micro_benchmark/Release/tcp_pubsub_micro_benchmark.exe `
-      --benchmark_repetitions=3 --benchmark_out=micro.json --benchmark_out_format=json
+cmake --preset current
+cmake --build --preset current
+ctest --preset current
+
+cmake --preset legacy
+cmake --build --preset legacy
+ctest --preset legacy
+
+_build\legacy\benchmarks\tcp_pubsub_benchmark\Release\tcp_pubsub_benchmark.exe --list
+_build\legacy\benchmarks\tcp_pubsub_benchmark\Release\tcp_pubsub_benchmark.exe `
+      --scenario all --duration 10 --repeat 3 --json legacy-result.json `
+      --label "legacy v2 971382ee3c62ef02795f16d5aa51aa9b508b58e7"
+_build\legacy\benchmarks\tcp_pubsub_micro_benchmark\Release\tcp_pubsub_micro_benchmark.exe `
+      --benchmark_repetitions=3 --benchmark_out=legacy-micro.json --benchmark_out_format=json
 ```
 
+The [presets](../../CMakePresets.json) build static libraries, tests, and both benchmark programs,
+with samples disabled. Each uses its own build and install directory beneath `_build/`.
+They use the default CMake generator; to select one explicitly, pass the same `-G` and architecture
+options to both configure commands, for example `-G "Visual Studio 17 2022" -A x64`.
+On Linux/macOS, single-config generators omit the `Release/` executable subdirectory and `.exe`
+suffix; the presets already set `CMAKE_BUILD_TYPE=Release`.
+
+Use the executables under `_build/current` in **separate processes** for comparison. Record the
+active source commit (and any uncommitted changes), frozen snapshot commit, compiler, architecture,
+dependency revisions, delivery mode, and options alongside the results. At M0 both builds still
+use the v2 adapter: the wire codec is new, but the v3 public API is not implemented yet.
+The old `-DTCP_PUBSUB_BENCHMARK_ADAPTER=v1` option remains a deprecated alias for `v2`.
+
+Without presets, select the implementation with `-DTCP_PUBSUB_IMPLEMENTATION=current|legacy`,
+enable `TCP_PUBSUB_BUILD_BENCHMARKS`, and use separate build directories.
 `TCP_PUBSUB_USE_BUILTIN_BENCHMARK=OFF` uses a system-installed Google Benchmark instead of the
-submodule. On Linux/macOS use a single-config generator with `-DCMAKE_BUILD_TYPE=Release`.
+submodule.
 
 ### Recording a baseline (Linux / macOS): `benchmarks/tools/run_baseline.sh`
 
 ```bash
 benchmarks/tools/run_baseline.sh <build-dir> <out-dir> <platform-tag> ["description"]
-# e.g. benchmarks/tools/run_baseline.sh _build/bench docs/rewrite/baseline linux-native "Ubuntu 24.04, gcc 13"
+# e.g. for the frozen v2 snapshot:
+BENCH_COMMIT=971382ee3c62ef02795f16d5aa51aa9b508b58e7 \
+  benchmarks/tools/run_baseline.sh _build/legacy docs/rewrite/baseline linux-native "Ubuntu 24.04, gcc 13"
 ```
 
 Runs every end-to-end scenario and every micro-benchmark **in its own process** and **retries**
 (up to `BENCH_MAXTRY`, default 3) when a process crashes or the harness reports pacing overruns,
 logging each event; then merges the per-scenario JSON files into
 `baseline-<adapter>-<tag>-pooled.json`, `...-inline.json` and `micro-<adapter>-<tag>.json`. This
-matters because the current implementation can crash on Linux when torn down repeatedly
+matters because the v2 implementation can crash on Linux when torn down repeatedly
 (baseline/README.md §5), and because a laptop that sleeps during a 20-minute run ruins it. Keep the machine
 awake and quiet; on Windows run the executables directly (the Windows baseline was recorded that way).
 Environment variables (`BENCH_DURATION`, `BENCH_REPEAT`, `BENCH_SKIP_MICRO`, …) are listed in the
-script header.
+script header. New runs default to the `v2` adapter tag; set `BENCH_ADAPTER_TAG=v3` when
+recording the new API with its adapter. `BENCH_COMMIT` defaults to the active checkout's HEAD,
+so override it as shown above for the frozen legacy library.
 
 Options: `--scenario <name|group|all>` (repeatable), `--duration`, `--warmup`, `--repeat`,
 `--io-threads` (worker threads per side, default 2), `--delivery pooled|inline`,
@@ -107,16 +133,18 @@ but use **separate execution contexts**; traffic is real TCP over loopback (`127
 Acceptance rule from the requirements: the rewrite is not worse than the baseline in p50 and
 p99 for W-1 and W-2 on every supported OS with default settings. Procedure:
 
-1. Run the same scenarios with the same options, same machine, same build type, **at least 3
-   repetitions**, for both adapters.
-2. Compare medians of the repetitions. Differences below the run-to-run spread of the baseline
+1. Build the `current` and `legacy` presets with the same compiler, architecture, and dependencies.
+   Keep the snapshot unchanged; add the v3 adapter when the new API becomes available.
+2. Run the same scenarios with the same options, same machine, same build type, **at least 3
+   repetitions**, for both implementations in separate processes.
+3. Compare medians of the repetitions. Differences below the run-to-run spread of the baseline
    (reported in section 6) are noise.
-3. Record the comparison next to the baseline JSON and in the README.
+4. Record the comparison and source provenance next to the baseline JSON and in the README.
 
 Run the baseline on every platform of the CI matrix (Windows, Linux x86-64/arm64, macOS) once
 the rewrite exists; so far Windows and Linux (WSL2, a virtual machine) have been recorded.
 
-## 6. Baseline of the current implementation
+## 6. Baseline of v2.0.1
 
 Recorded; see [baseline/README.md](baseline/README.md) for tables, interpretation, noise levels
 and the library issues observed. Peak RSS in the JSON is a process-wide peak (a large scenario

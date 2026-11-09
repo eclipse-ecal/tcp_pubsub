@@ -2,8 +2,20 @@ cmake_minimum_required(VERSION 3.23...4.0)
 
 include(CMakeDependentOption)
 
+set(TCP_PUBSUB_IMPLEMENTATION "current" CACHE STRING "Implementation to build (current or legacy)")
+set_property(CACHE TCP_PUBSUB_IMPLEMENTATION PROPERTY STRINGS current legacy)
+
+if (TCP_PUBSUB_IMPLEMENTATION STREQUAL "current")
+    set(_tcp_pubsub_implementation_root "${CMAKE_CURRENT_LIST_DIR}")
+elseif (TCP_PUBSUB_IMPLEMENTATION STREQUAL "legacy")
+    set(_tcp_pubsub_implementation_root "${CMAKE_CURRENT_LIST_DIR}/legacy/v2")
+else()
+    message(FATAL_ERROR "Invalid TCP_PUBSUB_IMPLEMENTATION '${TCP_PUBSUB_IMPLEMENTATION}'. Expected current or legacy.")
+endif()
+message(STATUS "tcp_pubsub implementation: ${TCP_PUBSUB_IMPLEMENTATION}")
+
 # Project call
-include("${CMAKE_CURRENT_LIST_DIR}/tcp_pubsub/version.cmake")
+include("${_tcp_pubsub_implementation_root}/tcp_pubsub/version.cmake")
 project(tcp_pubsub VERSION ${TCP_PUBSUB_VERSION_MAJOR}.${TCP_PUBSUB_VERSION_MINOR}.${TCP_PUBSUB_VERSION_PATCH})
 
 # Normalize backslashes from Windows paths
@@ -89,7 +101,7 @@ endif()
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/tcp_pubsub/Module)
 
 # Add main tcp_pubsub library
-add_subdirectory(tcp_pubsub)
+add_subdirectory("${_tcp_pubsub_implementation_root}/tcp_pubsub" "${CMAKE_CURRENT_BINARY_DIR}/tcp_pubsub")
 
 # Generic samples
 if (TCP_PUBSUB_BUILD_SAMPLES)
@@ -115,7 +127,10 @@ endif()
 # Add Tests if enabled
 if (TCP_PUBSUB_BUILD_TESTS)
     enable_testing()
-    add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/tests/tcp_pubsub_test")
+    add_subdirectory("${_tcp_pubsub_implementation_root}/tests/tcp_pubsub_test" "${CMAKE_CURRENT_BINARY_DIR}/tests/tcp_pubsub_test")
+    if (TCP_PUBSUB_IMPLEMENTATION STREQUAL "current")
+        add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/tests/tcp_pubsub_wire_test")
+    endif()
 endif()
 
 # Make this package available for packing with CPack

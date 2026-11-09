@@ -400,7 +400,7 @@ itself):
 
 ```
 FrameParser p(max_payload);
-Result r = p.feed(bytes, n);   // → events: HeaderComplete{type, data_size}, PayloadBytes{ptr,len}, FrameComplete, ProtocolError
+ParseResult r = p.feed(bytes, n);   // one event, with a consumed byte count
 ```
 
 It implements WP-F1…F4 (header size < 2 after LE conversion, short and long headers, skipping
@@ -409,15 +409,33 @@ WP-L1 (`data_size > max_payload` → `ProtocolError` *before* any allocation), a
 from a peer-supplied size beyond the limit (WP-L2). It is unit-tested exhaustively with
 byte-by-byte and coalesced input, independent of sockets.
 
+The M0 implementation returns one of `NeedMore`, `HeaderComplete`, `PayloadBytes`,
+`FrameComplete`, or `ProtocolError` per call. Advance the input by `r.consumed` and feed the
+unconsumed suffix again, **including an empty suffix**, until `NeedMore` or `ProtocolError`.
+`PayloadBytes` borrows the caller's input; the parser retains no payload bytes or input pointers.
+An empty `feed` is not EOF: call `finish()` when the peer closes. It reports `UnexpectedEof`
+for a partial frame; errors are latched. Already-complete events may still be drained with
+empty input after `finish()`.
+
+Both header and frame completion events carry a `discarded` flag. Unknown types and short
+`RegularPayload` headers set it and never emit `PayloadBytes`; callers must neither allocate
+nor deliver a message for them. A short `RegularPayload` header carries **no payload**, even
+when its partially present, zero-filled `data_size` field decodes to a nonzero value (WP-F2).
+The receive limit still applies to unknown types with a payload. `ParserMode::Discard` is only
+for the publisher's **post-handshake** read side: all frames are discarded and the payload limit
+is not applied (WP-R1/R2); a u64 length is consumed incrementally in constant memory.
+
 `SubConn` read loop (on its loop):
 1. one `async_read_some` into a **read-ahead buffer** (64 KiB, allocated while connected) – small
    messages need on average ≤ 1 read call (PERF-5; the current implementation uses 3);
-2. feed the parser; on `HeaderComplete` for `RegularPayload` with `data_size > 0`, acquire a
-   pooled `Buffer` of exactly that size (catching `std::bad_alloc` → close with error, ROB-3);
+2. feed the parser; on a **non-discarded** `HeaderComplete` for `RegularPayload` with
+   `data_size > 0`, acquire a pooled `Buffer` of exactly that size (catching `std::bad_alloc`
+   → close with error, ROB-3);
    bytes already in the read-ahead buffer are copied, the rest is read **directly into the payload
    buffer** (`async_read` of the remainder) for large payloads (PERF-3);
-3. on `FrameComplete`: build the `Message`, `mailbox.push(msg)` (5.2), update counters, continue.
-   `data_size == 0` → an empty `Message` (FR-SUB-12).
+3. on a **non-discarded** `FrameComplete` for `RegularPayload`: build the `Message`,
+   `mailbox.push(msg)` (5.2), update counters, continue. `data_size == 0` → an empty `Message`
+   (FR-SUB-12).
 
 ### 7.3 Session state machine and reconnect (FR-SUB-2/9/10/11, REC-1…REC-7)
 
@@ -613,7 +631,9 @@ tcp_pubsub/
     platform/    socket_options.{h,cpp} thread_name.{h,cpp}
 tests/           unit (wire, gate, serial queue, buffer pool) · conformance (raw sockets) ·
                  functional · lifecycle · reconnect · robustness · interop (pinned old release)
-benchmarks/      (exists) adapter_v2.cpp to be added
+legacy/v2/       frozen master snapshot of v2.0.1, including its original library and tests
+benchmarks/      shared harness with adapter_v2.cpp; adapter_v3.cpp to be added for the new API
+CMakePresets.json separate current/legacy Release builds, tests, and benchmark programs
 ```
 
 Dependency rule: `wire/` depends on nothing; `core/` on `wire/` and `platform/`; `publisher/` and
@@ -662,14 +682,72 @@ tests. No milestone may disable a test by platform.
 |---|---|---|---|
 | M0 | Wire codec | `src/wire/`: frame builder, incremental `FrameParser`, handshake codec | all WP conformance vectors (wire spec §6, §10 items 3–9, 11) as pure unit tests incl. byte-by-byte and coalesced input; fuzz/property test against random garbage never crashes or over-allocates |
 | M1 | Core primitives | `Gate`, `SerialQueue`, `BufferPool`/`Frame`/`Message`, `Loop`, dynamic `CallbackPool` (5.6), `Core` + `Context` | unit tests: gate run-down incl. self-enter, serial ordering, buffer-pool caps and lifetime after the pool owner is gone, loop start/stop, **LT-12** (last release on a library thread), callback pool: pre-start size, growth only when no idle worker, the two-quick-posts case (second task must not wait while below the maximum), cap respected and queueing beyond it, blocking handlers do not starve others below the cap, shutdown from a worker thread |
-| M2 | Publisher | `Publisher::create`, `PubConn`, mailbox/post path, registry, queries | conformance with raw sockets (golden bytes, fragmentation, handshake violations, oversize), functional tests, `Api_Publish` benchmark ≥ as good as v1 and **independent of subscriber count** |
+| M2 | Publisher | `Publisher::create`, `PubConn`, mailbox/post path, registry, queries | conformance with raw sockets (golden bytes, fragmentation, handshake violations, oversize), functional tests, `Api_Publish` benchmark ≥ as good as v2 and **independent of subscriber count** |
 | M3 | Subscriber | `Subscriber`, `Subscription`, `SubSession` incl. parser integration, mailbox + pool delivery, handler replacement | functional tests from the existing suite on ephemeral ports; interop with pinned old release (both roles); latest-wins and slow-consumer tests |
 | M4 | Reconnect and resolver | backoff, candidate lists, resolver thread, handshake timeouts | publisher-restart test, no-spin test, cancel-during-backoff test, publisher list with unresolvable first entry |
 | M5 | Observability | snapshots, counters, events, wait helpers, logger dispatch | CONN-* tests; no log call after teardown (LT-1) |
 | M6 | Delivery tickets | `TicketBlock`, slot protocol, snapshot/wait | tests for transmitted/superseded/failed-by-close/failed-by-teardown per peer; allocation-free when unused |
-| M7 | Benchmarks and hot-path decision | `adapter_v2`, run `tcp_pubsub_benchmark` + micro-benchmarks, record baseline of the rewrite | **PERF-2 acceptance** vs [baseline](baseline/README.md) (medians of ≥ 3 runs, tolerance = baseline spread); decide OD-10: implement the inline fast path (6.2 seam) *only if* it improves end-to-end p50/p99 for W-1 by more than the baseline spread without hurting fan-out |
+| M7 | Benchmarks and hot-path decision | `adapter_v3`, run `tcp_pubsub_benchmark` + micro-benchmarks, record baseline of the rewrite | **PERF-2 acceptance** vs [baseline](baseline/README.md) (medians of ≥ 3 runs, tolerance = baseline spread); decide OD-10: implement the inline fast path (6.2 seam) *only if* it improves end-to-end p50/p99 for W-1 by more than the baseline spread without hurting fan-out |
 | M8 | CI and hardening | TSAN/ASAN/UBSAN jobs, repeat-run flake detection, 1000× create/destroy stress, old-release interop job, CI matrix | all CI jobs green, no disabled tests |
 | M9 | Docs and migration | README, thread-safety table (TH-6), migration guide, changelog | DOC-1…6 |
+
+### 13.1 M0 implementation and tests
+
+The codec is implemented in [tcp_pubsub/src/wire/](../../tcp_pubsub/src/wire/) and compiled into
+the existing private library target. The active build now requires C++17; the current transport
+and public API otherwise remain unchanged until their replacement milestones.
+
+- `frame_builder`: canonical 12-byte, explicit little-endian headers and contiguous frames in
+  caller-owned storage. Payload copying supports overlap. Invalid arguments, the configured size
+  limit, header-plus-payload overflow, and insufficient capacity are checked before output is
+  modified. No allocation is performed.
+- `frame_parser`: the incremental, allocation-free contract in section 7.2. It stores only the
+  12 known header bytes and fixed-size counters, including when skipping a 65535-byte header or
+  discarding a u64-sized payload.
+- `handshake`: canonical request/response encoding and role-specific decoding. The caller retains
+  only the first payload byte and calls `decode_handshake` after the parser reports frame
+  completion; extension bytes need not be buffered. Publisher requests require a nonempty
+  handshake and negotiate `min(requested, supported)`; subscriber responses reject unsupported
+  versions and zero-fill an absent version byte.
+
+[tcp_pubsub_wire_test](../../tests/tcp_pubsub_wire_test/) is enabled by the existing
+`TCP_PUBSUB_BUILD_TESTS` option for the `current` implementation and registered with CTest.
+These are intentionally internal, pure codec unit tests for M0; the public-API/raw-socket
+conformance and pinned-release interop tests remain in M2/M3 (QA-2/QA-3). Coverage includes wire
+section 6 and the unit-test portions of section
+10 items 3–9 and 11, every split point and byte-by-byte input, coalesced mixed frames, size and
+arithmetic boundaries, EOF, and publisher-side discards. Deterministic property tests compare
+200 generated streams with independently encoded expected frames and exercise 4096 random
+garbage inputs with bounded-progress checks. Allocation probes require **zero** `new`/`new[]`
+calls during parsing garbage, skipping the maximum extended header, frame building, and handshake
+encoding/decoding.
+
+From the repository root:
+
+```
+cmake -S . -B _build -DTCP_PUBSUB_BUILD_TESTS=ON
+cmake --build _build --config Release --target tcp_pubsub_wire_test
+ctest --test-dir _build -C Release -R "^Wire" --output-on-failure
+```
+
+### 13.2 Frozen legacy baseline
+
+[legacy/v2/](../../legacy/v2/README.md) contains the unmodified v2.0.1 library, original tests,
+and license from `master` at `971382ee3c62ef02795f16d5aa51aa9b508b58e7`. It retains its
+original C++14 requirement and is not modified as the rewrite progresses.
+
+The root `TCP_PUBSUB_IMPLEMENTATION=current|legacy` cache variable selects the library,
+version metadata, and transport test suite. Only `current` enables the M0 wire tests.
+[CMakePresets.json](../../CMakePresets.json) provides matching configure, build, and test
+presets named `current` and `legacy`, with isolated build and install directories. Both build
+the same benchmark programs against exactly one implementation; dependencies and the harness
+are shared, and the two libraries must never be linked into one executable.
+
+At M0, both builds use `adapter_v2` because the active public API is still the 2.0.1 API.
+Add `adapter_v3` when the replacement API is available. The earlier adapter name `v1` was
+an internal benchmark label, not a tcp_pubsub release number; it remains a deprecated CMake
+alias for `v2`, and historical baseline JSON files retain their original names.
+See [05-benchmark.md](05-benchmark.md) for the comparison workflow.
 
 ## 14. Risks and open items
 

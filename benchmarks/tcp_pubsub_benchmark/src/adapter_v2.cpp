@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-// Adapter for the current (v1) tcp_pubsub public API.
+// Adapter for the tcp_pubsub 2.0.1 public API.
 
 #include "adapter.h"
 
@@ -32,10 +32,10 @@ namespace bench
       }
     }
 
-    class V1Publisher : public IPublisher
+    class V2Publisher : public IPublisher
     {
     public:
-      explicit V1Publisher(const std::shared_ptr<tcp_pubsub::Executor>& executor)
+      explicit V2Publisher(const std::shared_ptr<tcp_pubsub::Executor>& executor)
         : publisher_(executor, "127.0.0.1", 0)
       {}
 
@@ -50,10 +50,10 @@ namespace bench
       tcp_pubsub::Publisher publisher_;
     };
 
-    class V1Subscriber : public ISubscriber
+    class V2Subscriber : public ISubscriber
     {
     public:
-      V1Subscriber(const std::shared_ptr<tcp_pubsub::Executor>& executor, bool inline_delivery)
+      V2Subscriber(const std::shared_ptr<tcp_pubsub::Executor>& executor, bool inline_delivery)
         : subscriber_(executor)
         , inline_delivery_(inline_delivery)
       {}
@@ -87,22 +87,22 @@ namespace bench
       std::vector<std::shared_ptr<tcp_pubsub::SubscriberSession>> sessions_;
     };
 
-    class V1Context : public IContext
+    class V2Context : public IContext
     {
     public:
-      explicit V1Context(const AdapterOptions& options)
+      explicit V2Context(const AdapterOptions& options)
         : options_ (options)
         , executor_(std::make_shared<tcp_pubsub::Executor>(options.io_threads, quietLogger))
       {}
 
       std::unique_ptr<IPublisher> createPublisher() override
       {
-        return std::unique_ptr<IPublisher>(new V1Publisher(executor_));
+        return std::unique_ptr<IPublisher>(new V2Publisher(executor_));
       }
 
       std::unique_ptr<ISubscriber> createSubscriber() override
       {
-        return std::unique_ptr<ISubscriber>(new V1Subscriber(executor_, options_.inline_delivery));
+        return std::unique_ptr<ISubscriber>(new V2Subscriber(executor_, options_.inline_delivery));
       }
 
     private:
@@ -113,8 +113,8 @@ namespace bench
 
   std::unique_ptr<IContext> createContext(const AdapterOptions& options)
   {
-    return std::unique_ptr<IContext>(new V1Context(options));
+    return std::unique_ptr<IContext>(new V2Context(options));
   }
 
-  const char* adapterName() { return "tcp_pubsub-v1 (current API)"; }
+  const char* adapterName() { return "tcp_pubsub-v2 (2.0.1 API)"; }
 }

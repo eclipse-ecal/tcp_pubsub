@@ -1,7 +1,11 @@
-# Baseline of the current implementation (tcp_pubsub v1)
+# Baseline of tcp_pubsub v2.0.1
 
 Recorded with the end-to-end harness described in [../05-benchmark.md](../05-benchmark.md).
 These numbers are the reference for PERF-2 ("the rewrite is not worse than the baseline").
+
+The historical `v1` adapter label and JSON file names below refer to the **2.0.1** API, not
+release 1.x. The adapter is now named `v2`; the recorded JSON remains unchanged. The measured
+library is preserved in [legacy/v2/](../../../legacy/v2/README.md).
 
 | | |
 |---|---|

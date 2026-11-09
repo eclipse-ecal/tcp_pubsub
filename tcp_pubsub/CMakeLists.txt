@@ -52,6 +52,13 @@ set(sources
     src/subscriber_session_impl.h
     src/tcp_header.h
     src/tcp_pubsub_logger_abstraction.h
+    src/wire/frame_builder.cpp
+    src/wire/frame_builder.h
+    src/wire/frame_parser.cpp
+    src/wire/frame_parser.h
+    src/wire/handshake.cpp
+    src/wire/handshake.h
+    src/wire/header.h
 )
 
 # Generate version defines
@@ -99,7 +106,7 @@ target_compile_definitions(${PROJECT_NAME}_private
         $<$<STREQUAL:$<TARGET_PROPERTY:${PROJECT_NAME},TYPE>,OBJECT_LIBRARY>:TCP_PUBSUB_STATIC_DEFINE>
 )
 
-target_compile_features(${PROJECT_NAME}_private PUBLIC cxx_std_14)
+target_compile_features(${PROJECT_NAME}_private PUBLIC cxx_std_17)
 
 target_compile_options(${PROJECT_NAME}_private PRIVATE
                            $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
@@ -155,7 +162,7 @@ else()
         $<BUILD_INTERFACE:${PROJECT_NAME}_private>
     )
 
-    target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_14)
+    target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 
     set_target_properties(${PROJECT_NAME} PROPERTIES
         VERSION ${PROJECT_VERSION}
@@ -236,4 +243,3 @@ if (NOT TCP_PUBSUB_LIBRARY_TYPE STREQUAL "OBJECT")
     COMPONENT tcp_pubsub_dev
   )
 endif()
-

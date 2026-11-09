@@ -1,0 +1,79 @@
+{
+  "version": 4,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "comparison-base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/_build/${presetName}",
+      "installDir": "${sourceDir}/_build/${presetName}/install",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TCP_PUBSUB_LIBRARY_TYPE": "STATIC",
+        "TCP_PUBSUB_BUILD_SAMPLES": false,
+        "TCP_PUBSUB_BUILD_ECAL_SAMPLES": false,
+        "TCP_PUBSUB_BUILD_TESTS": true,
+        "TCP_PUBSUB_BUILD_BENCHMARKS": true
+      }
+    },
+    {
+      "name": "current",
+      "displayName": "Current implementation",
+      "description": "Build the evolving implementation, its tests, and both benchmark programs in Release mode.",
+      "inherits": "comparison-base",
+      "cacheVariables": {
+        "TCP_PUBSUB_IMPLEMENTATION": "current"
+      }
+    },
+    {
+      "name": "legacy",
+      "displayName": "Legacy v2.0.1",
+      "description": "Build the frozen master snapshot (971382e), its original tests, and both benchmark programs in Release mode.",
+      "inherits": "comparison-base",
+      "cacheVariables": {
+        "TCP_PUBSUB_IMPLEMENTATION": "legacy",
+        "TCP_PUBSUB_BENCHMARK_ADAPTER": "v2"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "current",
+      "configurePreset": "current",
+      "configuration": "Release"
+    },
+    {
+      "name": "legacy",
+      "configurePreset": "legacy",
+      "configuration": "Release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "current",
+      "configurePreset": "current",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
+      }
+    },
+    {
+      "name": "legacy",
+      "configurePreset": "legacy",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
+      }
+    }
+  ]
+}

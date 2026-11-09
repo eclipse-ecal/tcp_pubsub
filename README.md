@@ -97,6 +97,7 @@ You can set the following CMake Options to control how tcp_pubsub is built:
 
 | Option                             | Type  | Default | Explanation                                                                                                                                         |
 |------------------------------------|-------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `TCP_PUBSUB_IMPLEMENTATION`       | `STRING` | `current` | Select the active library (`current`) or the frozen master snapshot of v2.0.1 (`legacy`). Each build contains exactly one implementation. |
 | `TCP_PUBSUB_BUILD_SAMPLES`         | `BOOL`| `ON`    | Build project samples.                                                                                                                              |
 | `TCP_PUBSUB_BUILD_ECAL_SAMPLES`    | `BOOL`| `OFF`   | Build eCAL-based project samples. Requires eCAL to be findable by CMake.                                                                            |
 | `TCP_PUBSUB_USE_BUILTIN_ASIO`      | `BOOL`| `ON`    | Use the builtin asio submodule. If set to `OFF`, asio must be available from somewhere else (e.g. system libs).                                     |
@@ -134,6 +135,33 @@ There are several examples provided that aim to show you the functionality.
 	- `hello_world_publisher /.exe` + `hello_world_subscriber /.exe`
 	  *or*
 	- `performance_publisher /.exe` + `performance_subscriber /.exe`
+
+### Building current and legacy implementations
+
+[CMakePresets.json](CMakePresets.json) provides separate Release builds for the active rewrite
+and the [frozen v2.0.1 snapshot](legacy/v2/README.md) from `master` at
+`971382ee3c62ef02795f16d5aa51aa9b508b58e7`. CMake 3.23 or newer is required.
+
+```console
+cmake --preset current
+cmake --build --preset current
+ctest --preset current
+
+cmake --preset legacy
+cmake --build --preset legacy
+ctest --preset legacy
+```
+
+Both presets build a static library, the selected implementation's tests, and both benchmark
+programs; samples are disabled. They use separate `_build/current` and `_build/legacy`
+directories and install prefixes beneath those directories. The default CMake generator is used;
+you can select one explicitly when configuring, for example
+`cmake --preset current -G "Visual Studio 17 2022" -A x64`.
+
+The current build includes the M0 wire codec tests; the legacy build uses the original transport
+tests from the snapshot. At M0, the active transport still has the v2 public API; the new v3 API
+will arrive in subsequent milestones. See the [benchmark workflow](docs/rewrite/05-benchmark.md)
+for comparing implementations in separate processes with the same harness.
 
 ## The Protocol (Version 0)
 

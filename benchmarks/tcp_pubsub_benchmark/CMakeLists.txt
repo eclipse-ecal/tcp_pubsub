@@ -18,11 +18,11 @@ find_package(Threads    REQUIRED)
 
 # Adapter that connects the harness to one concrete implementation. To
 # benchmark another implementation, add an adapter_<name>.cpp and select it here.
-set(TCP_PUBSUB_BENCHMARK_ADAPTER "v1" CACHE STRING "Library adapter to benchmark (src/adapter_<name>.cpp)")
+include("${CMAKE_CURRENT_LIST_DIR}/../adapter.cmake")
 
 set(sources
     src/adapter.h
-    src/adapter_${TCP_PUBSUB_BENCHMARK_ADAPTER}.cpp
+    ${TCP_PUBSUB_BENCHMARK_ADAPTER_SOURCE}
     src/harness.cpp
     src/harness.h
     src/main.cpp

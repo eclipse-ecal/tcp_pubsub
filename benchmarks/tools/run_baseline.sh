@@ -10,7 +10,7 @@
 #   platform-tag   used in the file names, e.g. linux-native, linux-wsl2, macos-arm64
 #
 # Environment (all optional):
-#   BENCH_ADAPTER_TAG  adapter name used in file names             (default: v1)
+#   BENCH_ADAPTER_TAG  adapter name used in file names             (default: v2)
 #   BENCH_DURATION     measured seconds per scenario               (default: 10)
 #   BENCH_WARMUP       warm-up seconds                             (default: 1)
 #   BENCH_REPEAT       repetitions per scenario / micro-benchmark  (default: 3)
@@ -18,7 +18,7 @@
 #   BENCH_SKIP_MICRO   1 = run only the end-to-end part            (default: 0)
 #   BENCH_COMMIT       commit id stored in the label               (default: git HEAD)
 #
-# Why one process per scenario with retries: the current implementation can crash
+# Why one process per scenario with retries: the v2 implementation can crash
 # (SIGSEGV in asio's epoll_reactor::deregister_descriptor) when it is torn down repeatedly,
 # and a run that was disturbed (laptop going to sleep, other load) is flagged by the harness
 # ("pacing overruns"). Every crash and every noisy attempt is logged and the scenario is
@@ -34,7 +34,7 @@ BUILD=$1
 OUT=$2
 TAG=$3
 DESC=${4:-$TAG}
-ADAPTER=${BENCH_ADAPTER_TAG:-v1}
+ADAPTER=${BENCH_ADAPTER_TAG:-v2}
 DURATION=${BENCH_DURATION:-10}
 WARMUP=${BENCH_WARMUP:-1}
 REPEAT=${BENCH_REPEAT:-3}

@@ -26,7 +26,7 @@ if (NOT TARGET asio::asio)
 endif()
 
 # Same adapter as the end-to-end harness
-set(TCP_PUBSUB_BENCHMARK_ADAPTER "v1" CACHE STRING "Library adapter to benchmark (benchmarks/tcp_pubsub_benchmark/src/adapter_<name>.cpp)")
+include("${CMAKE_CURRENT_LIST_DIR}/../adapter.cmake")
 set(HARNESS_SRC "${CMAKE_CURRENT_SOURCE_DIR}/../tcp_pubsub_benchmark/src")
 
 set(sources
@@ -35,7 +35,7 @@ set(sources
     src/micro_floor.cpp
     src/micro_main.cpp
     ${HARNESS_SRC}/adapter.h
-    ${HARNESS_SRC}/adapter_${TCP_PUBSUB_BENCHMARK_ADAPTER}.cpp
+    ${TCP_PUBSUB_BENCHMARK_ADAPTER_SOURCE}
     ${HARNESS_SRC}/platform.cpp
     ${HARNESS_SRC}/platform.h
 )

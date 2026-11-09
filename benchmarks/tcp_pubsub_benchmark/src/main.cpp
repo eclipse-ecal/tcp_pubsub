@@ -34,7 +34,7 @@ namespace
       "  --repeat <n>           run every scenario n times (default 1)\n"
       "  --io-threads <n>       worker threads of each side's execution context (default 2)\n"
       "  --delivery <mode>      pooled (library default, handler on its own thread) | inline (handler on the I/O side)\n"
-      "  --label <text>         free text stored in the report (e.g. 'baseline v1, commit abc123')\n"
+      "  --label <text>         free text stored in the report (e.g. 'legacy v2, commit abc123')\n"
       "  --json <file>          write all results as JSON\n"
       "  --verbose              print where messages went missing (sequence gaps)\n"
       "\n"
