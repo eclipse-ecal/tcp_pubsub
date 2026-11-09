@@ -1,8 +1,9 @@
 # tcp_pubsub rewrite – Benchmark (PERF-1)
 
-Status: end-to-end harness **and** Google Benchmark micro-benchmarks implemented; the **Windows
-baseline of the current implementation is recorded** ([baseline/README.md](baseline/README.md)).
-Linux and macOS baselines are still missing.
+Status: end-to-end harness **and** Google Benchmark micro-benchmarks implemented; baselines of the
+current implementation recorded for **Windows** and **Linux (WSL2)**
+([baseline/README.md](baseline/README.md)). A native Linux, an arm64 and a macOS baseline are still
+missing.
 Requirements this serves: PERF-1 (baseline first), PERF-2 (not worse than baseline),
 PERF-3/4/5/7, QA-6, ROB-2 in [01-requirements.md](01-requirements.md).
 
@@ -33,6 +34,23 @@ _build/bench/benchmarks/tcp_pubsub_micro_benchmark/Release/tcp_pubsub_micro_benc
 
 `TCP_PUBSUB_USE_BUILTIN_BENCHMARK=OFF` uses a system-installed Google Benchmark instead of the
 submodule. On Linux/macOS use a single-config generator with `-DCMAKE_BUILD_TYPE=Release`.
+
+### Recording a baseline (Linux / macOS): `benchmarks/tools/run_baseline.sh`
+
+```bash
+benchmarks/tools/run_baseline.sh <build-dir> <out-dir> <platform-tag> ["description"]
+# e.g. benchmarks/tools/run_baseline.sh _build/bench docs/rewrite/baseline linux-native "Ubuntu 24.04, gcc 13"
+```
+
+Runs every end-to-end scenario and every micro-benchmark **in its own process** and **retries**
+(up to `BENCH_MAXTRY`, default 3) when a process crashes or the harness reports pacing overruns,
+logging each event; then merges the per-scenario JSON files into
+`baseline-<adapter>-<tag>-pooled.json`, `...-inline.json` and `micro-<adapter>-<tag>.json`. This
+matters because the current implementation can crash on Linux when torn down repeatedly
+(baseline/README.md §5), and because a laptop that sleeps during a 20-minute run ruins it. Keep the machine
+awake and quiet; on Windows run the executables directly (the Windows baseline was recorded that way).
+Environment variables (`BENCH_DURATION`, `BENCH_REPEAT`, `BENCH_SKIP_MICRO`, …) are listed in the
+script header.
 
 Options: `--scenario <name|group|all>` (repeatable), `--duration`, `--warmup`, `--repeat`,
 `--io-threads` (worker threads per side, default 2), `--delivery pooled|inline`,
@@ -96,7 +114,7 @@ p99 for W-1 and W-2 on every supported OS with default settings. Procedure:
 3. Record the comparison next to the baseline JSON and in the README.
 
 Run the baseline on every platform of the CI matrix (Windows, Linux x86-64/arm64, macOS) once
-the rewrite exists; only Windows has been recorded so far.
+the rewrite exists; so far Windows and Linux (WSL2, a virtual machine) have been recorded.
 
 ## 6. Baseline of the current implementation
 

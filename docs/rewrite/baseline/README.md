@@ -15,6 +15,11 @@ These numbers are the reference for PERF-2 ("the rewrite is not worse than the b
 Traffic is real TCP over loopback; publisher and subscriber are in one process with separate
 executors. Latency = just before `publish()` → handler entry (µs).
 
+**Platforms:** sections 1–9 describe the **Windows** baseline. The **Linux baseline (WSL2)** recorded
+on the same laptop is in [section 10](#10-linux-baseline-wsl2); it changes some conclusions
+(small versus large messages, cost of thread wake-ups), so read both before drawing design
+consequences.
+
 ## 1. Default configuration (asynchronous callback thread, "pooled")
 
 ### Latency and throughput
@@ -119,6 +124,16 @@ comparison a tolerance equal to the baseline spread.
   Endpoint strings print as `?` for the same reason (socket already closed when logging).
 - The first-message artifacts a naive harness could produce are avoided: connection and handshake
   settle before measuring and the measurement window starts after the warm-up.
+- **The current implementation crashes (SIGSEGV) on Linux when topologies are torn down repeatedly.**
+  Reproduced under gdb with the harness creating and destroying 100 publisher/subscriber pairs back
+  to back (`tcp_pubsub_benchmark --scenario idle-100 --duration 1 --warmup 0 --repeat 30`); it also
+  hit one micro-benchmark run (`Api_Publish/size:64/subs:100/gap_us:10000`) and a first, interrupted
+  attempt of the micro suite. Backtrace of the crashing thread (an I/O worker):
+  `asio::detail::epoll_reactor::deregister_descriptor` ← `SubscriberSession_Impl::connectionFailedHandler()`
+  ← completion handler of an `async_read` on the session's strand. The worker closes the session's socket
+  while a user thread's `cancel()` closes/cancels the same socket: the unserialised-socket race behind the
+  disabled Linux tests (`disable_racy_tests.cmake`), defect D-2 in the requirements. The runner therefore
+  executes every scenario in its own process and retries after a crash (section 10.1).
 
 ## 6. Micro-benchmarks (Google Benchmark)
 
@@ -232,8 +247,122 @@ These follow from the numbers; they are inputs for `03-architecture.md`, not dec
 
 ## 9. Not yet recorded
 
-- Linux (x86-64 and arm64) and macOS baselines; the harness is portable but only Windows was run.
+- macOS and Linux **arm64** baselines, and a **native** Linux x86-64 baseline (section 10 is a WSL2 VM).
 - A baseline taken on a dedicated, quiet machine with a fixed power plan.
 - Micro-benchmarks for frame building and buffer-pool internals (they need access to library
   internals and are only meaningful for the implementation under test); gather publish and ticket
   snapshot benchmarks belong to the rewrite.
+
+## 10. Linux baseline (WSL2)
+
+| | |
+|---|---|
+| Machine | the **same laptop** as above, Linux in WSL2 (a Hyper-V virtual machine): Ubuntu 24.04, kernel 6.18.33.2-microsoft-standard-WSL2, 16 virtual CPUs |
+| Build | gcc 13.3, CMake 3.28, Ninja, Release (`-O3 -DNDEBUG`), sources built on the VM's own ext4 file system |
+| Run | same parameters as Windows (10 s + 1 s warm-up, 3 repetitions, 2 worker threads per side); **one process per scenario**, so *peak RSS is per scenario* here (it is process-wide on Windows) |
+| Data | [baseline-v1-linux-wsl2-pooled.json](baseline-v1-linux-wsl2-pooled.json), [baseline-v1-linux-wsl2-inline.json](baseline-v1-linux-wsl2-inline.json), [micro-v1-linux-wsl2.json](micro-v1-linux-wsl2.json) |
+| Pacing health | 0 skipped publish slots in the reported runs (one `pairs-100` run was flagged and repeated) |
+
+**Read this first:** WSL2 is virtualised. Waking a blocked thread (futex/epoll wake-up) can require
+hypervisor involvement, which makes cross-thread wake-ups much more expensive than on native Linux.
+Treat the absolute small-message latencies as an upper bound for Linux, and the *relative* findings
+(where the time goes) as the useful result. A native Linux baseline is still missing.
+
+### 10.1 How the run was made
+
+- The first Linux attempt was **discarded**: the laptop went to sleep/hibernation during the run
+  (wall time 53 minutes instead of ~10, multi-second stalls, flagged by the harness's pacing check).
+  The final run keeps the system awake (`SetThreadExecutionState`) and took 18 minutes in total.
+- `benchmarks/tools/run_baseline.sh` runs each scenario/benchmark in its own process, **retries up
+  to 3 times** if the process crashes (see section 5) or the run reports pacing overruns, and logs
+  every such event. In the reported run: 1 crash (`Api_Publish/size:64/subs:100/gap_us:10000`, attempt 1)
+  and 1 noisy run (`pairs-100`, attempt 1), both succeeded on the next attempt.
+
+### 10.2 End-to-end, pooled delivery (median of 3; Windows for comparison)
+
+| Scenario | p50 Win | p50 Linux (min–max) | p99 Win | p99 Linux (min–max) | Linux throughput | `publish()` Win / Linux | CPU Win / Linux |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| small-64B | 227 | **622** (577–631) | 455 | **1 032** (951–1 070) | 100 msg/s | 162 / 104 µs | 2 / 4 % |
+| small-1KiB | 251 | **643** (638–664) | 524 | **1 058** (1 022–1 085) | 100 msg/s | 180 / 107 µs | 3 / 4 % |
+| small-64KiB | 630 | 880 (829–980) | 961 | 1 278 (1 223–1 566) | 6.2 MiB/s | 508 / 128 µs | 9 / 5 % |
+| large-1MiB | 4 051 | **2 063** (2 022–2 146) | 6 343 | 3 185 (2 845–3 708) | 15.0 MiB/s | 895 / 296 µs | 7 / 3 % |
+| large-4MiB | 12 245 | 7 081 (6 623–8 012) | 17 440 | 13 268 (8 976–18 249) | 60 MiB/s | 962 / 1 012 µs | 19 / 10 % |
+| large-16MiB | 41 987 | **21 907** (21 486–25 722) | 74 533 | 40 368 (33 880–61 515) | 240 MiB/s | 2 078 / 3 489 µs | 66 / 35 % |
+| fanout-10 | 1 452 | 1 299 (1 189–1 315) | 2 590 | 2 196 (2 093–2 242) | 62.5 MiB/s | 2 141 / 954 µs | 37 / 30 % |
+| fanout-100 | 3 094 | 3 380 (3 222–3 505) | 5 982 | 7 735 (6 709–7 984) | 156 MiB/s | 5 455 / 5 679 µs | 97 / 179 % |
+| pairs-100 | 68 | **298** (294–318) | 163 | **813** (702–2 338) | 9.8 MiB/s | 42 / 52 µs | 88 / **191 %** |
+| throughput-64KiB | 178 | 2 868 (995–3 395) | 460 | 6 423 | **546 MiB/s**, 8 730 msg/s, 10.6 % delivered | 8 / 12 µs | 147 / 250 % |
+| throughput-1MiB | 2 936 | 5 732 | 5 075 | 9 444 | **745 MiB/s**, 6.4 % delivered | 278 / 86 µs | 202 / 205 % |
+| slow-consumer | 8 394 | 6 484 | 14 993 | 12 085 | 20 msg/s, 20.1 % delivered | 823 / 277 µs | 39 / 16 % |
+| idle-100 | – | – | – | – | 0 % CPU, 106 threads (Windows 108), connect 25 ms (35), teardown 22 ms (25) | – | 0 / 0 % |
+
+Latencies in µs. Threads: 7 for one subscriber (Windows 8–11), 106 for 100 subscribers (Windows 108).
+
+### 10.3 Inline delivery (Linux, median of 3)
+
+| Scenario | p50 inline | vs pooled (Linux) | vs pooled (Windows) | p99 inline | vs pooled (Linux) |
+|---|---:|---:|---:|---:|---:|
+| small-64B | 543 | −79 µs (−13 %) | −15 µs (−7 %) | 1 022 | −10 µs (−1 %) |
+| small-1KiB | 565 | −78 µs (−12 %) | −39 µs (−16 %) | 1 126 | +68 µs (+6 %) |
+| small-64KiB | 932 | +52 µs (+6 %) | −77 µs (−12 %) | 1 709 | +431 µs (+34 %) |
+| large-1MiB | 2 054 | ≈ 0 | +205 µs (+5 %) | 3 669 | +484 µs (+15 %) |
+| fanout-10 | 1 222 | −77 µs (−6 %) | +245 µs (+17 %) | 2 193 | ≈ 0 |
+
+### 10.4 Micro-benchmarks (median of 3)
+
+| Primitive (hot = back to back, cold = after 10 ms idle) | Windows hot | Windows cold | Linux/WSL2 hot | Linux/WSL2 cold |
+|---|---:|---:|---:|---:|
+| condition-variable hand-off between two threads (one way) | 0.54 µs | 22.6 µs | **28.0 µs** | 65.3 µs |
+| `asio::post` call on the calling thread | 1.0 µs | 16.7 µs | 0.43 µs | 43.7 µs |
+| `asio::post` until the handler runs on an idle loop thread | 1.9 µs | 54.4 µs | 0.88 µs | **84.0 µs** |
+| blocking `send` of 64 B on loopback | 20.6 µs | 182 µs | 1.1 µs | **51.8 µs** |
+| `async_write` initiation of 64 B on the caller thread | 27.6 µs | 194 µs | 25.0 µs | 97.9 µs |
+| TCP echo, `TCP_NODELAY`, 64 B, one way | 24.4 µs | 117.5 µs | **150 µs** | **389 µs** |
+| TCP echo, 64 KiB, one way | 135 µs | 487 µs | 283 µs | 547 µs |
+| blocking `send` of 1 MiB | 2.09 ms | 2.75 ms | 0.87 ms | 0.48 ms |
+
+| `Api_Publish` (caller's `publish()` duration), cold, 100 Hz stream | Windows | Linux/WSL2 |
+|---|---:|---:|
+| 64 B → 1 subscriber | 180 µs | 110 µs |
+| 64 B → 10 subscribers | 606 µs | 695 µs |
+| 64 B → 100 subscribers | 4.04 ms | 3.94 ms |
+| 64 KiB → 1 subscriber | 476 µs | 148 µs |
+| 64 KiB → 10 subscribers | 2.32 ms | 966 µs |
+| 1 MiB → 1 subscriber | 870 µs | 280 µs |
+| no subscriber (any size) | 49–53 ns | 20–23 ns |
+
+Memory benchmarks on WSL2 are **not used**: `Floor_Memcpy/65536` takes 17 µs (3.6 GiB/s) while
+1 MiB takes 24 µs (40 GiB/s), stable across repetitions but non-monotonic. This looks like an artifact
+of how the two 64 KiB buffers are placed (cache-line/4K aliasing in the allocator) rather than a platform
+property; the benchmark should align its buffers before these floors are interpreted. The Windows
+memory numbers are consistent.
+
+### 10.5 What the Linux baseline adds
+
+1. **The send syscall is cheap on Linux, waking a thread is expensive (in this VM).** A cold 64 B
+   `send` costs 52 µs (Windows 182 µs), but handing work to a sleeping thread costs 65–84 µs (Windows
+   23–54 µs) and even a *hot* condition-variable hand-off costs 28 µs (Windows 0.5 µs). The latency of a
+   sparse small-message stream is therefore (number of thread wake-ups) × (wake-up cost): 622 µs p50
+   against a raw cold TCP floor of 389 µs one way.
+2. **Library overhead relative to the raw floor is similar on both systems:** 1.6× the cold TCP
+   one-way time on Linux (622 / 389), 1.9× on Windows (227 / 117.5).
+3. **Large messages are twice as fast on Linux** (1 MiB 2.1 ms vs 4.1 ms, 16 MiB 22 ms vs 42 ms) at half
+   the CPU, and the maximum throughput doubles (745 vs 371 MiB/s for 1 MiB messages).
+4. **Inline delivery helps small messages more on Linux in relative terms** (−13 %, ≈ −80 µs = one
+   avoided wake-up) but is neutral or worse for 64 KiB, 1 MiB and its tail latency.
+5. **One thread per subscriber seems to hurt Linux (VM) much more:** `pairs-100` is 4.4× slower at p50
+   (298 vs 68 µs) and 5× at p99 with 191 % CPU (Windows 88 %). This is consistent with the 100
+   callback threads of the current design competing for the VM's scheduler and paying the expensive
+   wake-ups of finding 1; it was not isolated further. A dynamic pool (OD-12) that only grows when
+   handlers actually overlap addresses this by design.
+6. **`publish()` on the caller thread is cheaper on Linux** (110 µs vs 180 µs for 64 B, 280 µs vs
+   870 µs for 1 MiB) but still scales linearly with subscribers (≈ 39 µs each at 100).
+
+**Effect on the open decision OD-10 (publish hot path):** on Linux an inline non-blocking send costs
+the caller ~52 µs cold (a few µs hot), while the post-to-loop design adds a cold hop of ~84 µs
+(~13 % of the small-message latency, matching the inline-delivery gain above). On Windows the same
+trade is 180 µs on the caller versus a 54 µs hop. Both platforms therefore favour *at least trying* the
+inline fast path for the first connection(s) once the prototype exists; the data supports the plan
+in [03-architecture.md](../03-architecture.md) §6.2 (post first, inline seam, decide in milestone M7)
+but makes it likely that the seam will be used. Fan-out (≈ 39–40 µs per extra subscriber on the caller
+in both systems) still argues against sending serially on the caller beyond the first few connections.

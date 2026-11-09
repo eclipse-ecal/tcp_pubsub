@@ -142,7 +142,7 @@ namespace
       {
         for (const auto& t : topologies)
         {
-          benchmark::internal::Benchmark* b = benchmark::RegisterBenchmark("Api_Publish", BM_Api_Publish);
+          benchmark::Benchmark* b = benchmark::RegisterBenchmark("Api_Publish", BM_Api_Publish);
           b->ArgNames({"size", "subs", "gap_us"})->Args({t.first, t.second, gap_us})->UseManualTime()
            ->Iterations(iterationsFor(t.first * t.second, gap_us));
         }

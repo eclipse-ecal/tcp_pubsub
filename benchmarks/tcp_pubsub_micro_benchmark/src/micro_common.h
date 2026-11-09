@@ -87,7 +87,7 @@ namespace microbench
     {
       for (const int64_t size : sizes)
       {
-        benchmark::internal::Benchmark* b = benchmark::RegisterBenchmark(name, fn);
+        benchmark::Benchmark* b = benchmark::RegisterBenchmark(name, fn);
         b->ArgNames({"size", "gap_us"})->Args({size, gap_us})->UseManualTime()->Iterations(iterationsFor(size, gap_us));
       }
     }
