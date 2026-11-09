@@ -3,7 +3,7 @@
 Status: **DRAFT for implementation planning.** Wire protocol is frozen and specified
 in [02-wire-protocol.md](02-wire-protocol.md). The public API, the internal
 architecture and the class design are **not** fixed by this document; they are to be
-derived from it (follow-up documents: `03-architecture.md` – to be written, and
+derived from it (follow-up documents: [03-architecture.md](03-architecture.md) – draft, and
 [04-api.md](04-api.md) – draft design notes).
 
 **Scope rule: this document is API-neutral.** Requirements describe *capabilities and
@@ -194,6 +194,12 @@ publishes and subscribers receive as one unit (one wire frame).
   one callback (existing test `multiple_publishers_test`); several subscribers can
   connect to the same publisher (existing test `multiple_subscribers_test`); several
   sessions to the same publisher are allowed.
+  *Topology note:* publishers and subscribers are **not** tied one-to-one. For N publishers
+  and M subscribers that each receive from all of them there are N `Publisher` objects,
+  M `Subscriber` objects (each with N sessions) and N×M TCP connections (inherent in the
+  point-to-point transport). A subscriber is one consumer (one handler) that can be connected
+  to any number of publishers; a publisher is one listening endpoint that serves any number
+  of subscribers.
 - **FR-SUB-5** *(existing)* A session can be ended individually by the user; it is then
   removed from the subscriber and never reconnects. (Whether that is done by destroying a
   handle, an explicit remove/stop operation, or both is API design.)
@@ -241,19 +247,25 @@ publishes and subscribers receive as one unit (one wire frame).
   replaces a pending older one. All sessions of one subscriber share this one slot
   (OD-6). The callback therefore always observes the most recent data available
   and never a backlog.
-- **DEL-4** *(existing)* **Back-pressure**: when the receiver (library or user callback)
-  is slow, the subscriber stops/slows reading from TCP; the publisher's per-connection
-  frame slots absorb this by dropping. Memory use stays bounded (ROB-2).
+- **DEL-4** **Bounded memory under a slow receiver.** When the user handler is slower than
+  the incoming messages, memory use stays bounded (ROB-2) and the publisher is never
+  slowed. In the default (pooled) delivery mode the subscriber *keeps reading* from TCP
+  and drops at its one-slot mailbox (this is also what the existing asynchronous mode
+  does); only in the optional inline mode (DEL-7) does reading pause while the handler
+  runs. The publisher's per-connection frame slots absorb a slow *network* peer by
+  dropping (DEL-2).
 - **DEL-5** *(existing)* **Order**: messages of one session are delivered to the callback
   in the order received (no reordering), possibly with gaps. Across sessions no order is
   guaranteed.
 - **DEL-6** *(existing)* **Callback execution**: the user callback is never invoked
   concurrently with itself for one subscriber (calls are serialised); it is allowed to
   run long (time-consuming work) without stalling other subscribers/publishers.
-  **Default**: callback runs on a **shared worker pool** that is separate from network
-  I/O (decision with owner). The size of that pool is small and fixed, independent of the
-  number of subscribers; one slow callback occupies at most one pool thread, only
-  while it runs.
+  **Default**: callback runs on a **shared, dynamically growing worker pool** that is
+  separate from network I/O (decision with owner, modelled on eCAL's dynamic thread
+  pool): a few threads are started up front; when a callback needs to run and no worker
+  is idle, the pool creates another worker up to a configurable maximum, and queues
+  beyond that. One slow callback occupies at most one pool thread, only while it runs,
+  and therefore cannot starve other subscribers as long as the maximum is not reached.
 - **DEL-7** *(optional, decision pending OD-2)* An opt-in mode where the callback runs
   directly on the I/O thread that received the message (lowest hand-off jitter,
   documented caveat: a slow callback delays other connections on that loop). In this
@@ -334,11 +346,13 @@ made here (OD-1).** Whatever is chosen MUST satisfy the following observable gua
 
 **Threading model (observable properties)**
 
-- **TH-1** The number of threads the library creates is **fixed at start-up** and
-  **independent of the number of publishers, subscribers, sessions and connections**.
-  It consists of a small configurable number of I/O threads, a small configurable
-  callback/event pool (DEL-6) and, at most, a documented resolver helper. A
-  thread budget table is part of the architecture document and of the README.
+- **TH-1** The number of threads the library creates is **bounded and not proportional to
+  the number of publishers, subscribers, sessions or connections**. It consists of a
+  small fixed number of I/O threads, a callback/event pool (DEL-6) with a configurable
+  initial size that grows on demand **only when callbacks actually run concurrently or
+  block**, up to a configurable maximum, and, at most, a documented resolver helper. A
+  thread budget table (including the pool maximum) is part of the architecture document
+  and of the README.
 - **TH-2** There is no thread per connection, per publisher, or per subscriber.
 - **TH-3** All socket operations (connect, read, write, close, option changes) of one
   connection are performed by exactly one logical owner at a time. No two operations on
@@ -526,8 +540,10 @@ The primary objective is low and *stable* latency for workloads W-1/W-2.
   publisher and slow consumer (bounded RSS/allocation counters).
 - **QA-7** Lifecycle tests: the existing `ExecutorShutdown.*` scenarios re-expressed as
   behaviour tests of LT-1..LT-12, including: destruction from within callbacks and event
-  handlers; destruction while connecting/handshaking/in backoff/mid-frame; destroy
-  while another thread publishes/queries/closes; destruction in each supported
+  handlers; destruction while connecting/handshaking/in backoff/mid-frame; destruction
+  while *library* threads are busy with the object's I/O, callbacks, events and logging
+  (concurrent use of a handle by a user thread together with its destruction is the
+  user's responsibility); destruction in each supported
   order; repeated create/destroy loops (≥ 1000 iterations) with traffic.
 - **QA-8** Reconnect tests: publisher restart (same port) → session reconnects; retry
   counting; no spin (measure attempts per second ≤ 1/s with the default); cancel during
@@ -561,17 +577,18 @@ The primary objective is low and *stable* latency for workloads W-1/W-2.
 
 | ID | Question | Default / recommendation |
 |---|---|---|
-| **OD-1** | Context/executor lifetime model: (A) handles co-own the context, (B) user must keep the context alive, (C) handles own their cores and only weakly reference the context, which closes everything on its destruction. The architecture document decides and must satisfy LT-1..LT-12. | **Owner preference: the context need not outlive publishers/subscribers → A**, with the context as a thin value wrapper over a shared core ([04-api.md](04-api.md) section 6.1). Remaining design problem: last release on a library thread (LT-12). Confirm in `03-architecture.md`. |
-| **OD-2** | Keep the opt-in "inline on I/O thread" delivery (DEL-7)? | Optional; only if the benchmark shows jitter of the pool hand-off matters. Expected gain: tens of µs on average, mostly lower jitter. |
+| **OD-1** | Context/executor lifetime model: (A) handles co-own the context, (B) user must keep the context alive, (C) handles own their cores and only weakly reference the context, which closes everything on its destruction. The architecture document decides and must satisfy LT-1..LT-12. | **Decided: A** (owner), with the context as a thin value wrapper over a shared core; the last-release-on-a-library-thread problem (LT-12) is solved in [03-architecture.md](03-architecture.md) §8.4. |
+| **OD-2** | Keep the opt-in "inline on I/O thread" delivery (DEL-7)? | Kept as a **seam only** ([03-architecture.md](03-architecture.md) §7.5), not implemented first. Measured gain on the current library: 15–40 µs p50, 10–25 % p99 for small messages, but worse with fan-out ([baseline](baseline/README.md) §3). |
 | **OD-3** | Default `max_payload_size`. | **Agreed: default 256 MiB** (≥ 16 MiB is mandatory). **One generic limit, configured once on the shared execution context** (no per-object override). It applies on the receiving side (WP-L1) and the publisher rejects larger messages up front (FR-PUB-10). Consider growing the receive buffer proportionally to received bytes for sizes above a few MiB to limit hostile pre-allocation. |
 | **OD-4** | Failure reporting of publisher start (FR-PUB-2): throw, error state, or factory result. | **API decision** → [04-api.md](04-api.md) section 8 (factory result proposed). |
 | **OD-5** | Windows listener socket options (`SO_REUSEADDR` vs `SO_EXCLUSIVEADDRUSE`). | Exclusive use on Windows; verify that rebind after close works for the tests. |
-| **OD-6** | One latest-wins slot per subscriber shared by all its sessions (existing), or one per session. | Keep existing (shared); document that fast publishers can shadow slow ones. |
+| **OD-6** | One latest-wins slot per subscriber shared by all its sessions (existing), or one per session. | **Decided: keep the single shared slot** (simplest to implement and to reason about; same behaviour as today). Under overload a fast publisher can shadow a slow one *within the same subscriber*; users who need per-publisher latest-wins create one `Subscriber` per publisher, which is cheap in the rewrite (no thread per subscriber). The mailbox interface takes the source session on `push`, so a per-session policy can be added later without API or wire changes ([03-architecture.md](03-architecture.md) §5.2). |
 | **OD-7** | Logger type: keep `std::function<void(LogLevel, const std::string&)>`, or `string_view`. | **API decision** → [04-api.md](04-api.md). |
-| **OD-8** | Internal networking library (Asio vs. raw sockets). | Asio stays acceptable (PLAT-5). |
+| **OD-8** | Internal networking library (Asio vs. raw sockets). | **Decided: keep standalone Asio**, only inside `src/` (PLAT-4/5), see [03-architecture.md](03-architecture.md) §1. |
 | **OD-9** | Default of the stuck-subscriber timeout (ROB-6), keep-alive intervals (CONN-10), handshake/connect timeouts (WP-H10, REC-5). | As given in the respective requirement; all configurable. |
-| **OD-10** | **Publish hot path** (architecture): (a) the caller thread performs a non-blocking send itself (lowest latency, charges the caller ~20–180 µs per subscriber), (b) the caller only posts to the I/O loops (caller pays 1–17 µs, one extra thread hop of ~20–55 µs when the system is idle), or (c) hybrid. FR-PUB-6 allows (a) and (b) as long as the call never waits for the network. | Decide with a prototype against the micro-benchmarks, see [baseline/README.md](baseline/README.md) sections 7–8. Fan-out must in any case not be serial on one thread. |
-| **OD-11** | Optional **low-latency mode** (short busy-poll / keep-warm on I/O threads) to avoid wake-up latency on sparse streams. Costs CPU and power. | Not required; decide after the Linux/macOS baselines show whether wake-ups dominate there too. |
+| **OD-10** | **Publish hot path** (architecture): (a) the caller thread performs a non-blocking send itself (lowest latency, charges the caller ~20–180 µs per subscriber), (b) the caller only posts to the I/O loops (caller pays 1–17 µs, one extra thread hop of ~20–55 µs when the system is idle), or (c) hybrid. FR-PUB-6 allows (a) and (b) as long as the call never waits for the network. | **Decided: (b) post to the I/O loops, one post per loop**; an inline fast path (a/c) is a later optimisation behind a marked seam, adopted only if the rewrite benchmark (milestone M7) shows an end-to-end gain larger than the baseline spread without hurting fan-out. See [03-architecture.md](03-architecture.md) §6.2 and [baseline/README.md](baseline/README.md) §7–8. Fan-out must in any case not be serial on one thread. |
+| **OD-11** | Optional **low-latency mode** (short busy-poll / keep-warm on I/O threads) to avoid wake-up latency on sparse streams. Costs CPU and power. | **Decided: out of scope for now** (owner); the architecture keeps one extension seam in the loop's run function ([03-architecture.md](03-architecture.md) §7.5). Revisit after the Linux/macOS baselines show whether wake-ups dominate there too. |
+| **OD-12** | Callback pool policy: fixed small pool, or dynamically growing pool. | **Decided: dynamically growing pool in the style of eCAL's `DynamicThreadPool`** (owner), with the adaptations listed in [03-architecture.md](03-architecture.md) §5.6: a few pre-started threads, a configured maximum (tentative default 16; 0 = unlimited as in eCAL), correct idle accounting, and `Join`/shutdown that is safe on a library thread (LT-12). |
 
 ## 17. Traceability and defects of the current implementation
 
@@ -629,4 +646,4 @@ rewrite is complete only when **all** of them (re-expressed) run and pass on all
 - **Streaming** – connection state after a completed handshake.
 - **Latest-wins** – a newer message replaces an older one that has not yet been sent or processed.
 - **I/O thread** – library thread that performs socket operations.
-- **Callback pool** – library threads on which user callbacks and event handlers run.
+- **Callback pool** – library threads on which user callbacks, event handlers and logger calls run; starts small and grows on demand up to a configured maximum.

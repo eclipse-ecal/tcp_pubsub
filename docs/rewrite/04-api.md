@@ -352,11 +352,12 @@ OD-1 (handles co-own the execution resource) and is **not expensive**:
 
 ```cpp
 struct ContextOptions {
-  size_t   io_threads        = 1;               // TH-1
-  size_t   callback_threads  = 2;               // DEL-6
-  Logger   logger            = defaultLogger;   // std::function<void(LogLevel, std::string_view)>  (OD-7)
-  size_t   max_message_size  = 256u << 20;      // OD-3: ONE generic limit, applies to all publishers and subscribers
-  KeepAlive keep_alive       = {};              // CONN-10
+  size_t   io_threads         = 2;               // TH-1: I/O loops
+  size_t   callback_threads   = 2;               // DEL-6: pre-started workers of the callback pool
+  size_t   max_callback_threads = 16;            // DEL-6 / OD-12: the pool grows on demand up to this (0 = unlimited); tentative default
+  Logger   logger             = defaultLogger;   // std::function<void(LogLevel, std::string_view)>  (OD-7)
+  size_t   max_message_size   = 256u << 20;      // OD-3: ONE generic limit, applies to all publishers and subscribers
+  KeepAlive keep_alive        = {};              // CONN-10
 };
 ```
 
@@ -393,6 +394,35 @@ using MessageHandler = std::function<void(const Message&)>;
 - Handler setting: in `SubscriberOptions` at construction and `setHandler()` at runtime
   (FR-SUB-8). Exceptions thrown by the handler are caught and logged (DEL-9).
 - `Message` must remain valid after the `Subscriber`/`Context` is gone (LT-7).
+
+### 7.1 Object model: N publishers, M subscribers
+
+A `Subscriber` is **not** limited to one publisher: it is one consumer (one handler) with any
+number of `Subscription`s, one per publisher it listens to.
+
+```cpp
+// N publishers (here 3, in some other process or in this one) and M = 2 consumers
+tcp_pubsub::Subscriber a(ctx, {.handler = handlerA});
+tcp_pubsub::Subscriber b(ctx, {.handler = handlerB});
+
+std::vector<tcp_pubsub::Subscription> links;
+for (const auto& endpoint : publisher_endpoints) {       // N endpoints
+  links.push_back(a.connect({endpoint}));                 // N sessions in a
+  links.push_back(b.connect({endpoint}));                 // N sessions in b
+}
+// Objects: N publishers + M subscribers.  TCP connections: N x M (one per session).
+```
+
+| Question | Answer |
+|---|---|
+| Do I need N×M `Subscriber` objects? | No: M subscribers, each with N subscriptions. |
+| How does a handler know the publisher? | `Message::source()` (FR-SUB-7); per-publisher state/statistics via the `Subscription`. |
+| What do several publishers in one `Subscriber` share? | The handler, its serial execution, and **one latest-wins slot** (OD-6): under overload the newest message from *any* of them wins. |
+| How do I get per-publisher handlers or per-publisher latest-wins? | One `Subscriber` per publisher; cheap in the rewrite (no thread is bound to a subscriber). |
+| What is `connect(candidates)` for? | The candidate list contains alternative addresses of the **same** publisher (e.g. host name, `.local`, IPv4/IPv6), not several publishers. |
+
+A convenience that connects to a list of publishers in one call and returns a group handle can be
+added later without changing the model.
 
 ## 8. Error reporting at start-up (FR-PUB-2, OD-4)
 
