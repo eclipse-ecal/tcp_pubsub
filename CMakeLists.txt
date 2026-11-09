@@ -33,6 +33,16 @@ option(TCP_PUBSUB_BUILD_TESTS
        "Build the tcp_pubsub tests. Requires Gtest::GTest to be findable by CMake."
        OFF)
 
+option(TCP_PUBSUB_BUILD_BENCHMARKS
+       "Build the benchmarks (benchmarks/): the end-to-end harness and the Google Benchmark micro-benchmarks. Use a Release build for meaningful results."
+       OFF)
+
+cmake_dependent_option(TCP_PUBSUB_USE_BUILTIN_BENCHMARK
+       "Use the builtin Google Benchmark submodule. Only needed if TCP_PUBSUB_BUILD_BENCHMARKS is ON. If set to OFF, Google Benchmark must be available from somewhere else (e.g. system libs)."
+       ON                             # Default value if dependency is met
+       "TCP_PUBSUB_BUILD_BENCHMARKS"  # Dependency
+       OFF)                           # Default value if dependency is not met
+
 cmake_dependent_option(TCP_PUBSUB_USE_BUILTIN_GTEST
        "Use the builtin GoogleTest submodule. Only needed if TCP_PUBSUB_BUILD_TESTS is ON. If set to OFF, GoogleTest must be available from somewhere else (e.g. system libs)."
        ON                       # Default value if dependency is met
@@ -64,6 +74,11 @@ if (TCP_PUBSUB_USE_BUILTIN_GTEST)
     include("${CMAKE_CURRENT_LIST_DIR}/thirdparty/gtest/build-gtest.cmake")
 endif()
 
+# Use builtin Google Benchmark
+if (TCP_PUBSUB_USE_BUILTIN_BENCHMARK)
+    include("${CMAKE_CURRENT_LIST_DIR}/thirdparty/benchmark/build-benchmark.cmake")
+endif()
+
 # For tests we need to make sure that all shared libraries and executables are 
 # put into the same directory. Otherwise the tests will fail on windows.
 if(TCP_PUBSUB_BUILD_TESTS AND (BUILD_SHARED_LIBS OR (TCP_PUBSUB_LIBRARY_TYPE STREQUAL "SHARED")))
@@ -90,6 +105,12 @@ if(TCP_PUBSUB_BUILD_ECAL_SAMPLES)
     add_subdirectory(samples/tcp_to_ecal)
 endif()
 
+
+# Benchmarks (not built by default)
+if (TCP_PUBSUB_BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks/tcp_pubsub_benchmark)
+    add_subdirectory(benchmarks/tcp_pubsub_micro_benchmark)
+endif()
 
 # Add Tests if enabled
 if (TCP_PUBSUB_BUILD_TESTS)
