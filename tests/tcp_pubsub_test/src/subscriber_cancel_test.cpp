@@ -150,11 +150,13 @@ TEST_F(SubscriberCancellationTest, ConcurrentStatusQueriesAndCancel)
 
     std::atomic<bool> stop_queries{false};
     std::atomic<int> query_count{0};
+    std::atomic<bool> cancel_returned_with_stale_endpoint{false};
     std::thread status_thread([&]()
     {
       while (!stop_queries.load())
       {
         static_cast<void>(session->isConnected());
+        static_cast<void>(session->getConnectedPublisher());
         ++query_count;
       }
     });
@@ -167,12 +169,25 @@ TEST_F(SubscriberCancellationTest, ConcurrentStatusQueriesAndCancel)
       FAIL() << "Status-query thread did not start";
     }
 
-    session->cancel();
+    std::vector<std::thread> cancellation_threads;
+    for (int i = 0; i < 4; ++i)
+    {
+      cancellation_threads.emplace_back([&]()
+      {
+        session->cancel();
+        if (!session->getConnectedPublisher().first.empty())
+          cancel_returned_with_stale_endpoint = true;
+      });
+    }
+    for (auto& cancellation_thread : cancellation_threads)
+      cancellation_thread.join();
+
     stop_queries = true;
     status_thread.join();
 
     EXPECT_FALSE(session->isConnected());
     EXPECT_TRUE(session->getConnectedPublisher().first.empty());
+    EXPECT_FALSE(cancel_returned_with_stale_endpoint.load());
     EXPECT_TRUE(WaitUntil([&]() { return subscriber.getSessions().empty(); }));
   }
 }
@@ -225,9 +240,11 @@ TEST_F(SubscriberCancellationTest, CancelFromSynchronousCallback)
   auto session = subscriber.addSession("127.0.0.1", acceptor.local_endpoint().port(), 0);
   // Shared with the callback, which may still run while the test is being torn down
   const auto callbacks = std::make_shared<std::atomic<int>>(0);
-  subscriber.setCallback([session, callbacks](const tcp_pubsub::CallbackData&)
+  const std::weak_ptr<tcp_pubsub::SubscriberSession> weak_session = session;
+  subscriber.setCallback([weak_session, callbacks](const tcp_pubsub::CallbackData&)
   {
-    session->cancel();
+    if (const auto session = weak_session.lock())
+      session->cancel();
     ++(*callbacks);
   }, true);
 

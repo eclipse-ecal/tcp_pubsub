@@ -292,6 +292,13 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::notifySessionClosed()
   {
+    {
+      const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
+      canceled_.store(true);
+      connected_publisher_endpoint_ = std::make_pair("", 0);
+      local_endpoint_.clear();
+    }
+
     if (session_closed_) return;
     session_closed_ = true;
     session_closed_handler_(shared_from_this());
@@ -514,12 +521,10 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::cancel()
   {
-    const bool already_canceled = canceled_.exchange(true);
-
-    if (already_canceled) return;
-
     {
       const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
+      if (canceled_.exchange(true)) return;
+
       connected_publisher_endpoint_ = std::make_pair("", 0);
       local_endpoint_.clear();
     }

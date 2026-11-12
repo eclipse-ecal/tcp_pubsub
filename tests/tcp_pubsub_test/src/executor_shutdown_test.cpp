@@ -328,6 +328,35 @@ TEST(ExecutorShutdown, RetainedCancelledSessionKeepsLoggerButNotWorkersAlive)
   EXPECT_EQ(log_counter.use_count(), 1);
 }
 
+TEST(ExecutorShutdown, ExhaustedSessionDoesNotRetainExecutorWorkAfterDestruction)
+{
+  const LogCounter log_counter = std::make_shared<std::atomic<int>>(0);
+  std::shared_ptr<tcp_pubsub::SubscriberSession> session;
+  std::weak_ptr<tcp_pubsub::Executor> weak_executor;
+  asio::io_context io;
+  uint16_t unused_port = 0;
+  {
+    asio::ip::tcp::acceptor temporary(io, {asio::ip::address_v4::loopback(), 0});
+    unused_port = temporary.local_endpoint().port();
+  }
+
+  {
+    auto executor = std::make_shared<tcp_pubsub::Executor>(1, makeCountingLogger(log_counter));
+    weak_executor = executor;
+    {
+      tcp_pubsub::Subscriber subscriber(executor);
+      session = subscriber.addSession("127.0.0.1", unused_port, 0);
+      ASSERT_TRUE(WaitUntil([&]() { return subscriber.getSessions().empty(); }));
+    }
+    executor.reset();
+  }
+
+  EXPECT_TRUE(weak_executor.expired());
+  EXPECT_FALSE(session->isConnected());
+  session.reset();
+  EXPECT_EQ(log_counter.use_count(), 1);
+}
+
 TEST(ExecutorShutdown, PendingWorkLongerThanFiveSecondsIsDrained)
 {
   const LogCounter log_counter = std::make_shared<std::atomic<int>>(0);
