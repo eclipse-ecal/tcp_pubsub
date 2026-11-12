@@ -163,11 +163,14 @@ There are several examples provided that aim to show you the functionality.
 ## Tests
 
 Build with `TCP_PUBSUB_BUILD_TESTS=ON` and run CTest from the build directory.
-Each test has a 60-second timeout. On Linux, tests that exchange messages or
-tear down active connections are temporarily disabled because socket cancellation
-can race with asynchronous socket operations. They remain listed in CTest and
-compiled so they can be re-enabled once the race is fixed in a separate change.
-Non-network tests remain enabled; other platforms keep the full test suite.
+The full test suite is enabled on all supported platforms, including Linux.
+Each test has a 60-second timeout.
+
+CI additionally runs the test suite with ThreadSanitizer on Ubuntu. To do the
+same locally, configure with `-fsanitize=thread` in `CMAKE_CXX_FLAGS`,
+`CMAKE_EXE_LINKER_FLAGS` and `CMAKE_SHARED_LINKER_FLAGS`. If TSan aborts with
+`unexpected memory mapping`, lower the ASLR entropy
+(`sudo sysctl vm.mmap_rnd_bits=28`) or run CTest via `setarch -R`.
 
 ## The Protocol (Version 0)
 

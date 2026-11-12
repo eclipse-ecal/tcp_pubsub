@@ -98,7 +98,7 @@ namespace tcp_pubsub
      * any thread. A lost connection is detected by the session's pending
      * read and reported as not connected. Returns false once the session has
      * been canceled.
-     * 
+     *
      * @return True, if the Session is connected to a publisher.
      */
     TCP_PUBSUB_EXPORT bool        isConnected() const;

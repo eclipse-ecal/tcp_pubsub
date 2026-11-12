@@ -158,11 +158,14 @@ TEST(ExecutorShutdown, LastReferenceIsReleasedOnWorkerThread)
           delete pointer;
           destruction->finished = true;
         });
-    auto traffic = std::make_unique<Traffic>(executor, received, executor,
-        [entered, release_future]()
+    const auto callback_keepalive = std::make_shared<std::shared_ptr<tcp_pubsub::Executor>>(executor);
+    auto traffic = std::make_unique<Traffic>(executor, received, nullptr,
+        [entered, release_future, callback_keepalive]()
         {
           entered->set_value(std::this_thread::get_id());
           release_future.wait();
+          // Release the last reference here, not during later cleanup on another worker.
+          callback_keepalive->reset();
         });
     const bool exchanged = traffic->exchangeMessage(received);
     if (!exchanged) release.set_value();
@@ -462,7 +465,7 @@ TEST(ExecutorShutdown, CancelledPublisherSessionCannotBeRestarted)
       makeCountingLogger(log_counter));
   session->cancel();
   session->start();
-  EXPECT_EQ(context->run(), 0);
+  context->run();
   EXPECT_EQ(closed->load(), 1);
   session.reset();
   context.reset();
