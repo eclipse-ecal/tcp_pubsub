@@ -45,6 +45,14 @@ option(TCP_PUBSUB_BUILD_TESTS
        "Build the tcp_pubsub tests. Requires Gtest::GTest to be findable by CMake."
        OFF)
 
+option(TCP_PUBSUB_BUILD_WIRE_FUZZER
+       "Build the current wire parser's libFuzzer target (requires Clang and sanitizer runtimes)."
+       OFF)
+
+if (TCP_PUBSUB_BUILD_WIRE_FUZZER AND NOT TCP_PUBSUB_IMPLEMENTATION STREQUAL "current")
+    message(FATAL_ERROR "TCP_PUBSUB_BUILD_WIRE_FUZZER is only available for the current implementation.")
+endif()
+
 option(TCP_PUBSUB_BUILD_BENCHMARKS
        "Build the benchmarks (benchmarks/): the end-to-end harness and the Google Benchmark micro-benchmarks. Use a Release build for meaningful results."
        OFF)
@@ -131,6 +139,10 @@ if (TCP_PUBSUB_BUILD_TESTS)
     if (TCP_PUBSUB_IMPLEMENTATION STREQUAL "current")
         add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/tests/tcp_pubsub_wire_test")
     endif()
+endif()
+
+if (TCP_PUBSUB_BUILD_WIRE_FUZZER)
+    add_subdirectory(tests/tcp_pubsub_wire_fuzz)
 endif()
 
 # Make this package available for packing with CPack

@@ -103,6 +103,7 @@ You can set the following CMake Options to control how tcp_pubsub is built:
 | `TCP_PUBSUB_USE_BUILTIN_ASIO`      | `BOOL`| `ON`    | Use the builtin asio submodule. If set to `OFF`, asio must be available from somewhere else (e.g. system libs).                                     |
 | `TCP_PUBSUB_USE_BUILTIN_RECYCLE`   | `BOOL`| `ON`    | Use the builtin `steinwurf::recycle` submodule. If set to `OFF`, recycle must be available from somewhere else (e.g. system libs).                  |
 | `TCP_PUBSUB_BUILD_TESTS`           | `BOOL`| `OFF`   | Build the tcp_pubsub tests. Requires Gtest::GTest to be findable by CMake. |
+| `TCP_PUBSUB_BUILD_WIRE_FUZZER`     | `BOOL`| `OFF`   | Build the current wire parser's libFuzzer target with upstream Clang and sanitizer runtimes. Independent of `TCP_PUBSUB_BUILD_TESTS`; see [fuzzing instructions](docs/rewrite/03-architecture.md#coverage-guided-fuzzing). |
 | `TCP_PUBSUB_USE_BUILTIN_GTEST`     | `BOOL`| `ON` (if building tests) | Use the builtin GoogleTest submodule. Only needed if `TCP_PUBSUB_BUILD_TESTS` is `ON`. If set to `OFF`, GoogleTest must be available from elsewhere. |
 | `TCP_PUBSUB_LIBRARY_TYPE`          | `STRING` |             | Controls the library type of tcp_pubsub by injecting the string into the `add_library` call. Can be set to STATIC / SHARED / OBJECT. If set, this will override the regular `BUILD_SHARED_LIBS` CMake option. If not set, CMake will use the default setting, which is controlled by `BUILD_SHARED_LIBS`.                |
 

@@ -11,7 +11,10 @@ project(tcp_pubsub_wire_test)
 
 find_package(GTest REQUIRED)
 
-add_executable(${PROJECT_NAME} src/wire_codec_test.cpp)
+add_executable(${PROJECT_NAME}
+    src/wire_codec_test.cpp
+    ../tcp_pubsub_wire_fuzz/src/frame_parser_fuzz.cpp
+)
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../../tcp_pubsub/src")
 target_link_libraries(${PROJECT_NAME} PRIVATE tcp_pubsub_private GTest::gtest_main)

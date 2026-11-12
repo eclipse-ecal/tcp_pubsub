@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "bytes.h"
 #include "header.h"
 
 namespace tcp_pubsub::wire
@@ -33,11 +34,11 @@ namespace tcp_pubsub::wire
     HandshakeError error = HandshakeError::None;
   };
 
-  HandshakeBytes build_handshake(std::uint8_t version = kProtocolVersion) noexcept;
+  [[nodiscard]] HandshakeBytes build_handshake(std::uint8_t version = kProtocolVersion) noexcept;
 
   // Invoke after FrameComplete. Retain only the first payload byte; the parser
   // consumes extensions, so prefix need not contain the whole handshake payload.
   [[nodiscard]] HandshakeResult decode_handshake(
-    HandshakeRole role, const Header& header, const std::uint8_t* prefix,
-    std::size_t prefix_size, std::uint8_t supported_version = kProtocolVersion) noexcept;
+    HandshakeRole role, const Header& header, ConstBytes prefix,
+    std::uint8_t supported_version = kProtocolVersion) noexcept;
 }

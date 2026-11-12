@@ -400,7 +400,7 @@ itself):
 
 ```
 FrameParser p(max_payload);
-ParseResult r = p.feed(bytes, n);   // one event, with a consumed byte count
+ParseResult r = p.feed(bytes);   // ConstBytes input; one event, with a consumed byte count
 ```
 
 It implements WP-F1…F4 (header size < 2 after LE conversion, short and long headers, skipping
@@ -701,6 +701,8 @@ and public API otherwise remain unchanged until their replacement milestones.
   caller-owned storage. Payload copying supports overlap. Invalid arguments, the configured size
   limit, header-plus-payload overflow, and insufficient capacity are checked before output is
   modified. No allocation is performed.
+- `bytes`: internal C++17 `ConstBytes` and `MutableBytes` non-owning views for codec input,
+  output, handshake prefixes, and borrowed payload results. See the ownership rules below.
 - `frame_parser`: the incremental, allocation-free contract in section 7.2. It stores only the
   12 known header bytes and fixed-size counters, including when skipping a 65535-byte header or
   discarding a u64-sized payload.
@@ -719,8 +721,10 @@ section 6 and the unit-test portions of section
 arithmetic boundaries, EOF, and publisher-side discards. Deterministic property tests compare
 200 generated streams with independently encoded expected frames and exercise 4096 random
 garbage inputs with bounded-progress checks. Allocation probes require **zero** `new`/`new[]`
-calls during parsing garbage, skipping the maximum extended header, frame building, and handshake
-encoding/decoding.
+calls, including the C++17 aligned scalar/array and nothrow forms, during parsing garbage,
+skipping the maximum extended header, frame building, and handshake encoding/decoding.
+The probe self-tests check alignment, zero-size allocations, and all aligned deallocation forms
+on Windows and POSIX. These probes count C++ allocations, not direct calls to `malloc`.
 
 From the repository root:
 
@@ -729,6 +733,105 @@ cmake -S . -B _build -DTCP_PUBSUB_BUILD_TESTS=ON
 cmake --build _build --config Release --target tcp_pubsub_wire_test
 ctest --test-dir _build -C Release -R "^Wire" --output-on-failure
 ```
+
+#### Byte views and ownership
+
+The internal codec accepts views instead of independent pointer/length pairs:
+
+```cpp
+std::array<std::uint8_t, 64> output{};
+const std::array<std::uint8_t, 2> payload{0x48, 0x69};
+auto built = wire::build_frame(output, wire::MessageType::RegularPayload, payload);
+// Check built.error before using built.size.
+wire::ConstBytes frame = wire::ConstBytes(output).first(built.size);
+auto event = parser.feed(frame);
+// event.payload is a ConstBytes borrowing frame, never an owning buffer.
+```
+
+Views are trivially copyable and never allocate. Lvalue `uint8_t` C arrays and contiguous
+containers such as `std::array<uint8_t, N>` and `std::vector<uint8_t>` convert without copying;
+`MutableBytes` converts to `ConstBytes`, never the reverse. Temporary owning containers,
+non-byte element types, and const-to-mutable conversion are rejected at compile time. This
+internal type deliberately only accepts `uint8_t` storage; the broader public byte-like
+conversions proposed in [04-api.md](04-api.md#3-passing-message-data-in-fr-pub-4-fr-pub-12)
+remain a separate API milestone.
+
+The pointer/length constructor is the explicit escape hatch for external memory. As with
+`std::span`, that storage must actually contain the specified number of elements and must
+outlive the view and all borrowed parser payloads. Resizing/moving the owner can invalidate
+views. Default and `(nullptr, 0)` views are valid and empty; `(nullptr, n > 0)` remains invalid,
+and codec entry points return `InvalidInput` rather than silently treating it as empty.
+An output view must have nonnull storage, even when its size is zero.
+
+`first(count)` and `subspan(offset[, count])` avoid manual pointer arithmetic. Like indexing,
+they require a valid view and in-range arguments; debug assertions check those preconditions.
+All empty slices, including those of a default-constructed view, avoid null-pointer arithmetic.
+`begin()`/`end()` support iteration. `encode_header` and `build_handshake` are `[[nodiscard]]`,
+as are the fallible codec entry points and view operations.
+
+#### Coverage-guided fuzzing
+
+`TCP_PUBSUB_BUILD_WIRE_FUZZER=ON` adds `tcp_pubsub_wire_fuzz` for the current implementation.
+It requires upstream Clang with the `clang++` driver, libFuzzer and AddressSanitizer runtimes;
+non-Windows builds also enable UBSan. Unsupported compilers or missing sanitizer runtimes
+fail configuration explicitly. The parser is compiled separately with the same instrumentation
+as the harness, not linked from an uninstrumented library. Normal builds are unaffected.
+
+For example, on Linux with Clang and Ninja installed, from the repository root:
+
+```console
+cmake -S . -B _build/wire-fuzz -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTCP_PUBSUB_BUILD_SAMPLES=OFF -DTCP_PUBSUB_BUILD_WIRE_FUZZER=ON
+cmake --build _build/wire-fuzz --target tcp_pubsub_wire_fuzz
+mkdir -p _build/wire-fuzz/corpus
+_build/wire-fuzz/tests/tcp_pubsub_wire_fuzz/tcp_pubsub_wire_fuzz _build/wire-fuzz/corpus -dict=tests/tcp_pubsub_wire_fuzz/frame_parser.dict -max_len=65536 -max_total_time=60
+```
+
+The corpus is reusable across runs; preserve any crash artifacts for regression tests.
+The dictionary supplies canonical, short, extended, unknown-type, and oversized frames.
+Each input is parsed as one chunk, byte-by-byte, and with an input-selected fragment size,
+in both receive/discard modes and with zero, small, and platform-maximum payload limits.
+The harness compares frame/header counts, consumed bytes, ordered header/payload hashes and EOF
+errors across schedules. It also checks borrowed payload bounds, bounded progress, complete-frame
+sizes and terminal error behavior. Checks remain enabled in release builds.
+The ordinary wire unit tests execute this same harness on fixed vectors, truncated/coalesced
+frames, a maximum-size header and deterministic random data. That smoke test verifies the
+harness on compilers without libFuzzer; it does not replace coverage-guided fuzzing.
+
+#### Proposal: draining parser events safely (not implemented)
+
+Before wiring the codec into new transports, add a shared allocation-free `consume` visitor API
+and make the single-event `feed` primitive an implementation detail for ordinary callers:
+
+```cpp
+enum class VisitControl { Continue, Stop };
+enum class DrainStatus { NeedMore, Stopped, ProtocolError };
+struct [[nodiscard]] DrainResult {
+  ConstBytes remaining;
+  DrainStatus status;
+  ParseError error;
+};
+
+template<class Visitor>
+[[nodiscard]] DrainResult consume(ConstBytes input, Visitor& visitor) noexcept;
+```
+
+- The helper owns the offset and drains **all** events, including zero-input frame completion,
+  before returning `NeedMore`. Callers never manually advance `consumed` or remember to feed an
+  empty suffix.
+- Use typed visitor methods (`on_header`, `on_payload`, `on_frame`) rather than a catch-all
+  `ParseResult`: each exposes only its relevant data. Require `noexcept` callbacks at compile
+  time, with static dispatch, no `std::function`, no allocation and no hidden exception handling.
+  Header/frame callbacks must expose the discard flag; payload callbacks borrow a `ConstBytes`.
+- Only `on_frame` returns `VisitControl`; stopping at a frame boundary returns `Stopped` and
+  the exact unconsumed view. This allows a handshake-to-streaming transition even when both
+  phases arrive in one socket read, without accidentally parsing the next frame in the wrong mode.
+- `NeedMore` guarantees an empty remainder; `Stopped` requires an intentional resume or phase
+  handoff; `ProtocolError` carries the latched failure. No failure is represented as success.
+  A matching visitor-aware EOF operation drains pending completion events before checking EOF.
+- Acceptance tests: every split/coalesced frame sequence, zero-length frames, no trailing input,
+  stop/resume at each frame boundary, handshake-plus-data in one read, EOF at each byte, errors,
+  callback ordering, and zero allocations. Keep the low-level primitive for focused codec tests
+  and fuzzing, not as the default transport API.
 
 ### 13.2 Frozen legacy baseline
 

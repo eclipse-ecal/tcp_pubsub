@@ -15,15 +15,16 @@ namespace tcp_pubsub::wire
     static_assert(sizeof(std::size_t) <= sizeof(std::uint64_t), "Payload sizes must fit in u64");
   }
 
-  ParseResult FrameParser::feed(const std::uint8_t* bytes, std::size_t size) noexcept
+  ParseResult FrameParser::feed(ConstBytes bytes) noexcept
   {
     if (error_ != ParseError::None)
       return make_result(ParseEvent::ProtocolError, 0);
-    if (bytes == nullptr && size != 0)
+    if (!bytes.valid())
       return fail(ParseError::InvalidInput, 0);
-    if (finished_ && size != 0)
+    if (finished_ && !bytes.empty())
       return fail(ParseError::InputAfterEnd, 0);
 
+    const auto size = bytes.size();
     std::size_t consumed = 0;
     for (;;)
     {
@@ -94,14 +95,13 @@ namespace tcp_pubsub::wire
         if (count == 0)
           return make_result(ParseEvent::NeedMore, consumed);
 
-        const auto* payload = bytes + consumed;
+        const auto payload = bytes.subspan(consumed, count);
         consumed += count;
         payload_remaining_ -= count;
         if (!discarded_)
         {
           auto result = make_result(ParseEvent::PayloadBytes, consumed);
           result.payload = payload;
-          result.payload_size = count;
           return result;
         }
         break;
@@ -132,7 +132,7 @@ namespace tcp_pubsub::wire
 
   ParseResult FrameParser::make_result(ParseEvent event, std::size_t consumed) const noexcept
   {
-    return {event, consumed, header_, nullptr, 0, discarded_, error_};
+    return {event, consumed, header_, {}, discarded_, error_};
   }
 
   ParseResult FrameParser::fail(ParseError error, std::size_t consumed) noexcept

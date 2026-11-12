@@ -15,8 +15,15 @@
 #include <limits>
 #include <new>
 #include <random>
+#include <type_traits>
 #include <utility>
 #include <vector>
+
+#if defined(_WIN32)
+#include <malloc.h>
+#endif
+
+extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size);
 
 namespace allocation_tracking
 {
@@ -28,6 +35,27 @@ namespace allocation_tracking
     if (enabled)
       ++count;
     return std::malloc(size == 0 ? 1 : size);
+  }
+
+  void* allocate_aligned(std::size_t size, std::size_t alignment) noexcept
+  {
+    if (enabled)
+      ++count;
+#if defined(_WIN32)
+    return _aligned_malloc(size == 0 ? 1 : size, alignment);
+#else
+    void* memory = nullptr;
+    return posix_memalign(&memory, alignment, size == 0 ? 1 : size) == 0 ? memory : nullptr;
+#endif
+  }
+
+  void free_aligned(void* memory) noexcept
+  {
+#if defined(_WIN32)
+    _aligned_free(memory);
+#else
+    std::free(memory);
+#endif
   }
 
   class Probe
@@ -105,6 +133,58 @@ void operator delete[](void* memory, const std::nothrow_t&) noexcept
   ::operator delete(memory);
 }
 
+void* operator new(std::size_t size, std::align_val_t alignment)
+{
+  if (auto* memory = allocation_tracking::allocate_aligned(size, static_cast<std::size_t>(alignment)))
+    return memory;
+  throw std::bad_alloc();
+}
+
+void* operator new[](std::size_t size, std::align_val_t alignment)
+{
+  return ::operator new(size, alignment);
+}
+
+void* operator new(std::size_t size, std::align_val_t alignment, const std::nothrow_t&) noexcept
+{
+  return allocation_tracking::allocate_aligned(size, static_cast<std::size_t>(alignment));
+}
+
+void* operator new[](std::size_t size, std::align_val_t alignment, const std::nothrow_t& tag) noexcept
+{
+  return ::operator new(size, alignment, tag);
+}
+
+void operator delete(void* memory, std::align_val_t) noexcept
+{
+  allocation_tracking::free_aligned(memory);
+}
+
+void operator delete[](void* memory, std::align_val_t alignment) noexcept
+{
+  ::operator delete(memory, alignment);
+}
+
+void operator delete(void* memory, std::size_t, std::align_val_t alignment) noexcept
+{
+  ::operator delete(memory, alignment);
+}
+
+void operator delete[](void* memory, std::size_t, std::align_val_t alignment) noexcept
+{
+  ::operator delete(memory, alignment);
+}
+
+void operator delete(void* memory, std::align_val_t alignment, const std::nothrow_t&) noexcept
+{
+  ::operator delete(memory, alignment);
+}
+
+void operator delete[](void* memory, std::align_val_t alignment, const std::nothrow_t&) noexcept
+{
+  ::operator delete(memory, alignment);
+}
+
 namespace
 {
   namespace wire = tcp_pubsub::wire;
@@ -164,19 +244,19 @@ namespace
     wire::ParseError error = wire::ParseError::None;
     wire::ParseError eof_error = wire::ParseError::None;
 
-    void feed(wire::FrameParser& parser, const std::uint8_t* bytes, std::size_t size)
+    void feed(wire::FrameParser& parser, wire::ConstBytes bytes)
     {
       std::size_t offset = 0;
-      for (std::size_t step = 0; step < 3 * size + 16; ++step)
+      for (std::size_t step = 0; step < 3 * bytes.size() + 16; ++step)
       {
-        const auto result = parser.feed(offset == size ? nullptr : bytes + offset, size - offset);
-        ASSERT_LE(result.consumed, size - offset);
+        const auto result = parser.feed(bytes.subspan(offset));
+        ASSERT_LE(result.consumed, bytes.size() - offset);
         offset += result.consumed;
         switch (result.event)
         {
         case wire::ParseEvent::NeedMore:
           EXPECT_EQ(result.error, wire::ParseError::None);
-          EXPECT_EQ(offset, size);
+          EXPECT_EQ(offset, bytes.size());
           return;
         case wire::ParseEvent::ProtocolError:
           EXPECT_NE(result.error, wire::ParseError::None);
@@ -188,10 +268,10 @@ namespace
           break;
         case wire::ParseEvent::PayloadBytes:
           ASSERT_FALSE(result.discarded);
-          ASSERT_GT(result.payload_size, 0u);
-          ASSERT_LE(result.payload_size, result.consumed);
-          ASSERT_EQ(result.payload, bytes + offset - result.payload_size);
-          pending.insert(pending.end(), result.payload, result.payload + result.payload_size);
+          ASSERT_FALSE(result.payload.empty());
+          ASSERT_LE(result.payload.size(), result.consumed);
+          ASSERT_EQ(result.payload.data(), bytes.data() + offset - result.payload.size());
+          pending.insert(pending.end(), result.payload.begin(), result.payload.end());
           break;
         case wire::ParseEvent::FrameComplete:
           if (result.discarded)
@@ -219,7 +299,7 @@ namespace
     for (std::size_t offset = 0; offset < bytes.size() && capture.error == wire::ParseError::None;)
     {
       const auto count = (std::min)(chunk_size, bytes.size() - offset);
-      capture.feed(parser, bytes.data() + offset, count);
+      capture.feed(parser, wire::ConstBytes(bytes).subspan(offset, count));
       offset += count;
     }
     capture.eof_error = parser.finish();
@@ -231,6 +311,65 @@ namespace
     return {12, wire::MessageType::ProtocolHandshake, 0, data_size};
   }
 
+  TEST(WireBytes, RestrictsConversionsToBorrowedByteStorage)
+  {
+    static_assert(std::is_trivially_copyable_v<wire::ConstBytes>);
+    static_assert(std::is_trivially_copyable_v<wire::MutableBytes>);
+    static_assert(std::is_convertible_v<Bytes&, wire::ConstBytes>);
+    static_assert(std::is_convertible_v<const Bytes&, wire::ConstBytes>);
+    static_assert(std::is_convertible_v<Bytes&, wire::MutableBytes>);
+    static_assert(std::is_convertible_v<wire::MutableBytes, wire::ConstBytes>);
+    static_assert(!std::is_convertible_v<wire::ConstBytes, wire::MutableBytes>);
+    static_assert(!std::is_convertible_v<const Bytes&, wire::MutableBytes>);
+    static_assert(!std::is_convertible_v<Bytes&&, wire::ConstBytes>);
+    static_assert(!std::is_convertible_v<const Bytes&&, wire::ConstBytes>);
+    static_assert(!std::is_convertible_v<Bytes&&, wire::MutableBytes>);
+    static_assert(!std::is_convertible_v<std::array<std::uint8_t, 4>&&, wire::ConstBytes>);
+    static_assert(!std::is_convertible_v<std::vector<std::uint16_t>&, wire::ConstBytes>);
+    static_assert(!std::is_convertible_v<std::vector<wire::ConstBytes>&, wire::ConstBytes>);
+
+    std::uint8_t bytes[]{1, 2, 3};
+    wire::MutableBytes output = bytes;
+    output[1] = 42;
+    const wire::ConstBytes input = output;
+    EXPECT_EQ(input.data(), bytes);
+    EXPECT_EQ(input.size(), 3u);
+    EXPECT_EQ(input[1], 42);
+
+    const std::array<std::uint8_t, 2> array{4, 5};
+    EXPECT_EQ(wire::ConstBytes(array)[1], 5);
+    Bytes vector{6, 7};
+    auto vector_view = wire::MutableBytes(vector);
+    vector_view[0] = 8;
+    EXPECT_EQ(wire::ConstBytes(vector)[0], 8);
+  }
+
+  TEST(WireBytes, PreservesEmptyInvalidAndSubspanSemantics)
+  {
+    constexpr wire::ConstBytes empty;
+    static_assert(empty.valid() && empty.empty() && empty.data() == nullptr);
+    static_assert(empty.first(0).empty() && empty.subspan(0).empty());
+    static_assert(empty.subspan(0, 0).data() == nullptr);
+    static_assert(empty.begin() == empty.end());
+    constexpr wire::ConstBytes invalid{nullptr, 1};
+    static_assert(!invalid.valid() && !invalid.empty() && invalid.size() == 1);
+
+    std::array<std::uint8_t, 4> bytes{1, 2, 3, 4};
+    const wire::ConstBytes view = bytes;
+    EXPECT_EQ(view.first(2).size(), 2u);
+    EXPECT_EQ(view.first(2).data(), bytes.data());
+    EXPECT_EQ(view.subspan(1, 2)[1], 3);
+    EXPECT_EQ(view.subspan(2).size(), 2u);
+    EXPECT_EQ(view.subspan(4).data(), bytes.data() + bytes.size());
+    EXPECT_EQ(view.begin(), bytes.data());
+    EXPECT_EQ(view.end(), bytes.data() + bytes.size());
+    EXPECT_TRUE(view.subspan(4).empty());
+    EXPECT_TRUE(view.subspan(4, 0).empty());
+    auto mutable_slice = wire::MutableBytes(bytes).subspan(1).first(1);
+    mutable_slice[0] = 9;
+    EXPECT_EQ(bytes[1], 9);
+  }
+
   TEST(WireBuilder, EmitsGoldenHandshakeAndData)
   {
     const auto handshake = wire::build_handshake();
@@ -238,9 +377,7 @@ namespace
 
     std::array<std::uint8_t, 16> output{};
     const std::array<std::uint8_t, 2> payload{0x48, 0x69};
-    const auto result = wire::build_frame(output.data(), output.size(),
-                                         wire::MessageType::RegularPayload,
-                                         payload.data(), payload.size());
+    const auto result = wire::build_frame(output, wire::MessageType::RegularPayload, payload);
     ASSERT_EQ(result.error, wire::BuildError::None);
     ASSERT_EQ(result.size, kHi.size());
     EXPECT_EQ(Bytes(output.begin(), output.begin() + result.size), kHi);
@@ -250,8 +387,7 @@ namespace
   TEST(WireBuilder, EmitsEmptyFrameAndAcceptsNullEmptyPayload)
   {
     std::array<std::uint8_t, 12> output{};
-    const auto result = wire::build_frame(output.data(), output.size(),
-                                         wire::MessageType::RegularPayload, nullptr, 0, 0);
+    const auto result = wire::build_frame(output, wire::MessageType::RegularPayload, {}, 0);
     ASSERT_EQ(result.error, wire::BuildError::None);
     EXPECT_EQ(result.size, kEmpty.size());
     EXPECT_EQ(Bytes(output.begin(), output.end()), kEmpty);
@@ -271,10 +407,11 @@ namespace
     std::array<std::uint8_t, 16> output{};
     output.fill(0xA5);
     const auto original = output;
-    EXPECT_EQ(wire::build_frame(nullptr, 16, wire::MessageType::RegularPayload, nullptr, 0).error,
+    EXPECT_EQ(wire::build_frame({nullptr, 16}, wire::MessageType::RegularPayload, {}).error,
               wire::BuildError::InvalidInput);
-    const auto result = wire::build_frame(output.data(), output.size(),
-                                         wire::MessageType::RegularPayload, nullptr, 1);
+    EXPECT_EQ(wire::build_frame({}, wire::MessageType::RegularPayload, {}).error,
+              wire::BuildError::InvalidInput);
+    const auto result = wire::build_frame(output, wire::MessageType::RegularPayload, {nullptr, 1});
     EXPECT_EQ(result.error, wire::BuildError::InvalidInput);
     EXPECT_EQ(result.size, 0u);
     EXPECT_EQ(output, original);
@@ -286,24 +423,24 @@ namespace
     output.fill(0xA5);
     const auto original = output;
     const std::uint8_t payload = 42;
-    auto result = wire::build_frame(output.data(), output.size(),
-                                   wire::MessageType::RegularPayload, &payload, 2, 1);
+    auto result = wire::build_frame(output, wire::MessageType::RegularPayload, {&payload, 2}, 1);
     EXPECT_EQ(result.error, wire::BuildError::PayloadTooLarge);
     EXPECT_EQ(result.size, 0u);
     const auto largest = (std::numeric_limits<std::size_t>::max)();
-    result = wire::build_frame(output.data(), largest, wire::MessageType::RegularPayload,
-                              &payload, largest, largest);
+    result = wire::build_frame({output.data(), largest}, wire::MessageType::RegularPayload,
+                              {&payload, largest}, largest);
     EXPECT_EQ(result.error, wire::BuildError::SizeOverflow);
     EXPECT_EQ(result.size, 0u);
-    result = wire::build_frame(output.data(), 0, wire::MessageType::RegularPayload,
-                              &payload, largest - wire::kHeaderSize, largest);
+    result = wire::build_frame(wire::MutableBytes(output).first(0), wire::MessageType::RegularPayload,
+                              {&payload, largest - wire::kHeaderSize}, largest);
     EXPECT_EQ(result.error, wire::BuildError::InsufficientBuffer);
     EXPECT_EQ(result.size, 0u);
-    result = wire::build_frame(output.data(), largest, wire::MessageType::RegularPayload,
-                              &payload, largest - wire::kHeaderSize + 1, largest);
+    result = wire::build_frame({output.data(), largest}, wire::MessageType::RegularPayload,
+                              {&payload, largest - wire::kHeaderSize + 1}, largest);
     EXPECT_EQ(result.error, wire::BuildError::SizeOverflow);
     EXPECT_EQ(result.size, 0u);
-    result = wire::build_frame(output.data(), 12, wire::MessageType::RegularPayload, &payload, 1);
+    result = wire::build_frame(wire::MutableBytes(output).first(12),
+                              wire::MessageType::RegularPayload, {&payload, 1});
     EXPECT_EQ(result.error, wire::BuildError::InsufficientBuffer);
     EXPECT_EQ(result.size, 0u);
     EXPECT_EQ(output, original);
@@ -317,9 +454,8 @@ namespace
       std::array<std::uint8_t, 18> output{};
       output[source_offset] = 0x48;
       output[source_offset + 1] = 0x69;
-      const auto result = wire::build_frame(output.data(), output.size(),
-                                           wire::MessageType::RegularPayload,
-                                           output.data() + source_offset, 2);
+      const auto result = wire::build_frame(output, wire::MessageType::RegularPayload,
+                                           wire::ConstBytes(output).subspan(source_offset, 2));
       ASSERT_EQ(result.error, wire::BuildError::None);
       EXPECT_EQ(Bytes(output.begin(), output.begin() + result.size), kHi);
     }
@@ -330,9 +466,7 @@ namespace
     constexpr std::size_t size = 16 * 1024 * 1024;
     Bytes payload(size, 0x5A);
     Bytes frame(wire::kHeaderSize + size + 1, 0xA5);
-    const auto result = wire::build_frame(frame.data(), frame.size(),
-                                         wire::MessageType::RegularPayload,
-                                         payload.data(), payload.size(), size);
+    const auto result = wire::build_frame(frame, wire::MessageType::RegularPayload, payload, size);
     ASSERT_EQ(result.error, wire::BuildError::None);
     EXPECT_EQ(result.size, wire::kHeaderSize + size);
     EXPECT_EQ(frame[6], 0);
@@ -373,8 +507,8 @@ namespace
       SCOPED_TRACE(split);
       wire::FrameParser parser;
       Capture capture;
-      capture.feed(parser, stream.data(), split);
-      capture.feed(parser, stream.data() + split, stream.size() - split);
+      capture.feed(parser, wire::ConstBytes(stream).first(split));
+      capture.feed(parser, wire::ConstBytes(stream).subspan(split));
       EXPECT_EQ(capture.error, wire::ParseError::None);
       EXPECT_EQ(parser.finish(), wire::ParseError::None);
       ASSERT_EQ(capture.frames.size(), 5u);
@@ -504,16 +638,16 @@ namespace
                              raw_header(12, 1, UINT64_MAX), raw_header(12, 7, UINT64_MAX)})
     {
       wire::FrameParser parser;
-      const auto result = parser.feed(bytes.data(), bytes.size());
+      const auto result = parser.feed(bytes);
       EXPECT_EQ(result.event, wire::ParseEvent::ProtocolError);
       EXPECT_EQ(result.error, wire::ParseError::PayloadTooLarge);
       EXPECT_EQ(result.consumed, 12u);
-      EXPECT_EQ(result.payload, nullptr);
-      EXPECT_EQ(result.payload_size, 0u);
+      EXPECT_EQ(result.payload.data(), nullptr);
+      EXPECT_TRUE(result.payload.empty());
     }
     const auto header = raw_header(16, 0, 3);
     wire::FrameParser parser(2);
-    const auto result = parser.feed(header.data(), header.size());
+    const auto result = parser.feed(header);
     EXPECT_EQ(result.error, wire::ParseError::PayloadTooLarge);
     EXPECT_EQ(result.consumed, 12u);
   }
@@ -532,7 +666,7 @@ namespace
     {
       const auto header = raw_header(12, 0, size);
       wire::FrameParser parser(static_cast<std::size_t>(size));
-      const auto result = parser.feed(header.data(), header.size());
+      const auto result = parser.feed(header);
       EXPECT_EQ(result.event, wire::ParseEvent::HeaderComplete);
       EXPECT_EQ(result.header.data_size, size);
       EXPECT_EQ(parser.finish(), wire::ParseError::UnexpectedEof);
@@ -569,19 +703,19 @@ namespace
   TEST(WireParser, LatchesErrorsAndRejectsNullNonemptyInput)
   {
     wire::FrameParser parser;
-    EXPECT_EQ(parser.feed(nullptr, 0).event, wire::ParseEvent::NeedMore);
-    const auto invalid = parser.feed(nullptr, 1);
+    EXPECT_EQ(parser.feed({}).event, wire::ParseEvent::NeedMore);
+    const auto invalid = parser.feed({nullptr, 1});
     EXPECT_EQ(invalid.error, wire::ParseError::InvalidInput);
-    const auto after = parser.feed(kHi.data(), kHi.size());
+    const auto after = parser.feed(kHi);
     EXPECT_EQ(after.event, wire::ParseEvent::ProtocolError);
     EXPECT_EQ(after.error, wire::ParseError::InvalidInput);
     EXPECT_EQ(after.consumed, 0u);
     EXPECT_EQ(parser.finish(), wire::ParseError::InvalidInput);
 
     wire::FrameParser truncated;
-    EXPECT_EQ(truncated.feed(kHi.data(), 1).event, wire::ParseEvent::NeedMore);
+    EXPECT_EQ(truncated.feed(wire::ConstBytes(kHi).first(1)).event, wire::ParseEvent::NeedMore);
     EXPECT_EQ(truncated.finish(), wire::ParseError::UnexpectedEof);
-    EXPECT_EQ(truncated.feed(kHi.data() + 1, kHi.size() - 1).error, wire::ParseError::UnexpectedEof);
+    EXPECT_EQ(truncated.feed(wire::ConstBytes(kHi).subspan(1)).error, wire::ParseError::UnexpectedEof);
   }
 
   TEST(WireParser, CanDrainCompleteFrameAfterFinishAndRejectsFurtherBytes)
@@ -589,23 +723,23 @@ namespace
     for (const auto& bytes : {kEmpty, kHi})
     {
       wire::FrameParser parser;
-      const auto header = parser.feed(bytes.data(), bytes.size());
+      const auto header = parser.feed(bytes);
       EXPECT_EQ(header.event, wire::ParseEvent::HeaderComplete);
       ASSERT_EQ(header.consumed, wire::kHeaderSize);
       if (bytes.size() > header.consumed)
       {
-        const auto payload = parser.feed(bytes.data() + header.consumed, bytes.size() - header.consumed);
+        const auto payload = parser.feed(wire::ConstBytes(bytes).subspan(header.consumed));
         EXPECT_EQ(payload.event, wire::ParseEvent::PayloadBytes);
         EXPECT_EQ(payload.consumed, bytes.size() - header.consumed);
       }
       EXPECT_EQ(parser.finish(), wire::ParseError::None);
-      const auto complete = parser.feed(nullptr, 0);
+      const auto complete = parser.feed({});
       EXPECT_EQ(complete.event, wire::ParseEvent::FrameComplete);
       EXPECT_FALSE(complete.discarded);
       EXPECT_EQ(complete.header.data_size, bytes.size() - wire::kHeaderSize);
-      EXPECT_EQ(parser.feed(nullptr, 0).event, wire::ParseEvent::NeedMore);
+      EXPECT_EQ(parser.feed({}).event, wire::ParseEvent::NeedMore);
       EXPECT_EQ(parser.finish(), wire::ParseError::None);
-      EXPECT_EQ(parser.feed(kHi.data(), kHi.size()).error, wire::ParseError::InputAfterEnd);
+      EXPECT_EQ(parser.feed(kHi).error, wire::ParseError::InputAfterEnd);
     }
   }
 
@@ -627,17 +761,17 @@ namespace
   {
     const auto bytes = raw_header(12, 0, UINT64_MAX);
     wire::FrameParser parser(0, wire::ParserMode::Discard);
-    const auto header = parser.feed(bytes.data(), bytes.size());
+    const auto header = parser.feed(bytes);
     EXPECT_EQ(header.event, wire::ParseEvent::HeaderComplete);
     EXPECT_TRUE(header.discarded);
     EXPECT_EQ(header.header.data_size, UINT64_MAX);
     std::array<std::uint8_t, 32> chunk{};
     for (int i = 0; i < 64; ++i)
     {
-      const auto result = parser.feed(chunk.data(), chunk.size());
+      const auto result = parser.feed(chunk);
       EXPECT_EQ(result.event, wire::ParseEvent::NeedMore);
       EXPECT_EQ(result.consumed, chunk.size());
-      EXPECT_EQ(result.payload_size, 0u);
+      EXPECT_TRUE(result.payload.empty());
     }
     EXPECT_EQ(parser.finish(), wire::ParseError::UnexpectedEof);
   }
@@ -649,7 +783,7 @@ namespace
     const auto& frame = capture.frames[0];
     for (const auto role : {wire::HandshakeRole::Publisher, wire::HandshakeRole::Subscriber})
     {
-      const auto result = wire::decode_handshake(role, frame.header, frame.payload.data(), frame.payload.size());
+      const auto result = wire::decode_handshake(role, frame.header, frame.payload);
       EXPECT_EQ(result.error, wire::HandshakeError::None);
       EXPECT_EQ(result.version, 0);
     }
@@ -661,11 +795,11 @@ namespace
     {
       const auto version = static_cast<std::uint8_t>(requested);
       const auto result = wire::decode_handshake(wire::HandshakeRole::Publisher,
-                                                 handshake_header(1), &version, 1);
+                                                 handshake_header(1), {&version, 1});
       EXPECT_EQ(result.error, wire::HandshakeError::None);
       EXPECT_EQ(result.version, 0);
       const auto future = wire::decode_handshake(wire::HandshakeRole::Publisher,
-                                                 handshake_header(1), &version, 1, 5);
+                                                 handshake_header(1), {&version, 1}, 5);
       EXPECT_EQ(future.error, wire::HandshakeError::None);
       EXPECT_EQ(future.version, (std::min)(requested, 5u));
       EXPECT_EQ(wire::build_handshake(version).back(), version);
@@ -678,15 +812,17 @@ namespace
     {
       const auto version = static_cast<std::uint8_t>(offered);
       const auto result = wire::decode_handshake(wire::HandshakeRole::Subscriber,
-                                                 handshake_header(1), &version, 1);
+                                                 handshake_header(1), {&version, 1});
       EXPECT_EQ(result.error, offered == 0 ? wire::HandshakeError::None
                                           : wire::HandshakeError::UnsupportedVersion);
       const auto future = wire::decode_handshake(wire::HandshakeRole::Subscriber,
-                                                 handshake_header(1), &version, 1, 5);
+                                                 handshake_header(1), {&version, 1}, 5);
       EXPECT_EQ(future.error, offered <= 5 ? wire::HandshakeError::None
                                           : wire::HandshakeError::UnsupportedVersion);
       if (offered <= 5)
+      {
         EXPECT_EQ(future.version, offered);
+      }
     }
   }
 
@@ -699,13 +835,13 @@ namespace
         continue;
       auto header = handshake_header(1);
       header.type = static_cast<wire::MessageType>(type);
-      EXPECT_EQ(wire::decode_handshake(wire::HandshakeRole::Publisher, header, &version, 1).error,
+      EXPECT_EQ(wire::decode_handshake(wire::HandshakeRole::Publisher, header, {&version, 1}).error,
                 wire::HandshakeError::ExpectedHandshake);
     }
-    EXPECT_EQ(wire::decode_handshake(wire::HandshakeRole::Publisher, handshake_header(0), nullptr, 0).error,
+    EXPECT_EQ(wire::decode_handshake(wire::HandshakeRole::Publisher, handshake_header(0), {}).error,
               wire::HandshakeError::EmptyRequest);
     const auto response = wire::decode_handshake(wire::HandshakeRole::Subscriber,
-                                                  handshake_header(0), nullptr, 0);
+                                                  handshake_header(0), {});
     EXPECT_EQ(response.error, wire::HandshakeError::None);
     EXPECT_EQ(response.version, 0);
   }
@@ -715,10 +851,10 @@ namespace
     const std::array<std::uint8_t, 4> payload{0, 0xFF, 0xFF, 0xFF};
     for (const auto role : {wire::HandshakeRole::Publisher, wire::HandshakeRole::Subscriber})
     {
-      const auto full = wire::decode_handshake(role, handshake_header(4), payload.data(), payload.size());
+      const auto full = wire::decode_handshake(role, handshake_header(4), payload);
       EXPECT_EQ(full.error, wire::HandshakeError::None);
       EXPECT_EQ(full.version, 0);
-      const auto prefix = wire::decode_handshake(role, handshake_header(UINT64_MAX), payload.data(), 1);
+      const auto prefix = wire::decode_handshake(role, handshake_header(UINT64_MAX), wire::ConstBytes(payload).first(1));
       EXPECT_EQ(prefix.error, wire::HandshakeError::None);
       EXPECT_EQ(prefix.version, 0);
     }
@@ -729,11 +865,11 @@ namespace
     const std::uint8_t version = 0;
     for (const auto role : {wire::HandshakeRole::Publisher, wire::HandshakeRole::Subscriber})
     {
-      EXPECT_EQ(wire::decode_handshake(role, handshake_header(1), nullptr, 1).error,
+      EXPECT_EQ(wire::decode_handshake(role, handshake_header(1), {nullptr, 1}).error,
                 wire::HandshakeError::InvalidInput);
-      EXPECT_EQ(wire::decode_handshake(role, handshake_header(0), &version, 1).error,
+      EXPECT_EQ(wire::decode_handshake(role, handshake_header(0), {&version, 1}).error,
                 wire::HandshakeError::InvalidInput);
-      EXPECT_EQ(wire::decode_handshake(role, handshake_header(1), nullptr, 0).error,
+      EXPECT_EQ(wire::decode_handshake(role, handshake_header(1), {}).error,
                 wire::HandshakeError::MissingVersion);
     }
   }
@@ -777,7 +913,7 @@ namespace
       for (std::size_t offset = 0; offset < stream.size();)
       {
         const auto size = (std::min)(static_cast<std::size_t>(1 + random() % 37), stream.size() - offset);
-        capture.feed(parser, stream.data() + offset, size);
+        capture.feed(parser, wire::ConstBytes(stream).subspan(offset, size));
         offset += size;
       }
       ASSERT_EQ(capture.error, wire::ParseError::None);
@@ -807,6 +943,61 @@ namespace
       allocations = probe.stop();
     }
     EXPECT_EQ(allocations, 2u);
+  }
+
+  TEST(WireProperties, AllocationProbeCountsAllAlignedForms)
+  {
+    constexpr auto alignment = std::align_val_t{64};
+    std::size_t allocations = 0;
+    bool valid = true;
+    {
+      allocation_tracking::Probe probe;
+      for (const std::size_t size : {0u, 65u})
+      {
+        auto* single = ::operator new(size, alignment);
+        auto* array = ::operator new[](size, alignment);
+        auto* sized = ::operator new(size, alignment);
+        auto* sized_array = ::operator new[](size, alignment);
+        auto* nothrow = ::operator new(size, alignment, std::nothrow);
+        auto* nothrow_array = ::operator new[](size, alignment, std::nothrow);
+        for (auto* memory : {single, array, sized, sized_array, nothrow, nothrow_array})
+          valid = valid && memory != nullptr && reinterpret_cast<std::uintptr_t>(memory) % 64 == 0;
+        ::operator delete(single, alignment);
+        ::operator delete[](array, alignment);
+        ::operator delete(sized, size, alignment);
+        ::operator delete[](sized_array, size, alignment);
+        ::operator delete(nothrow, alignment, std::nothrow);
+        ::operator delete[](nothrow_array, alignment, std::nothrow);
+      }
+      allocations = probe.stop();
+    }
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(allocations, 12u);
+  }
+
+  TEST(WireProperties, FuzzHarnessSmoke)
+  {
+    EXPECT_EQ(LLVMFuzzerTestOneInput(nullptr, 0), 0);
+    for (const auto& bytes : {kHandshake, kHi, kEmpty, kExtendedHi, kUnknown, kOversize, kShort,
+                             raw_header(0, 0, 0), raw_header(1, 0, 0), raw_header(65535, 0, 0),
+                             raw_header(12, 0, UINT64_MAX)})
+    {
+      EXPECT_EQ(LLVMFuzzerTestOneInput(bytes.data(), bytes.size()), 0);
+      EXPECT_EQ(LLVMFuzzerTestOneInput(bytes.data(), bytes.size() - 1), 0);
+    }
+    Bytes coalesced;
+    for (const auto& frame : {kHandshake, kEmpty, kHi, kShort, kUnknown, kExtendedHi})
+      append(coalesced, frame);
+    EXPECT_EQ(LLVMFuzzerTestOneInput(coalesced.data(), coalesced.size()), 0);
+
+    std::mt19937 random(0xF022);
+    std::array<std::uint8_t, 256> bytes{};
+    for (int iteration = 0; iteration < 256; ++iteration)
+    {
+      for (auto& byte : bytes)
+        byte = static_cast<std::uint8_t>(random());
+      EXPECT_EQ(LLVMFuzzerTestOneInput(bytes.data(), random() % (bytes.size() + 1)), 0);
+    }
   }
 
   TEST(WireProperties, RandomGarbageMakesBoundedProgressWithoutAllocations)
@@ -840,8 +1031,7 @@ namespace
           bool stopped = false;
           for (std::size_t step = 0; step < 3 * chunk + 16; ++step)
           {
-            const auto result = parser.feed(consumed == chunk ? nullptr : bytes.data() + offset + consumed,
-                                            chunk - consumed);
+            const auto result = parser.feed(wire::ConstBytes(bytes).subspan(offset + consumed, chunk - consumed));
             if (result.consumed > chunk - consumed)
             {
               valid = false;
@@ -849,9 +1039,9 @@ namespace
             }
             consumed += result.consumed;
             if (result.event == wire::ParseEvent::PayloadBytes)
-              valid = valid && !result.discarded && result.payload_size != 0
-                      && result.payload_size <= result.consumed
-                      && result.payload == bytes.data() + offset + consumed - result.payload_size;
+              valid = valid && !result.discarded && !result.payload.empty()
+                      && result.payload.size() <= result.consumed
+                      && result.payload.data() == bytes.data() + offset + consumed - result.payload.size();
             if (result.event == wire::ParseEvent::ProtocolError)
             {
               valid = valid && result.error != wire::ParseError::None;
@@ -889,26 +1079,25 @@ namespace
     std::size_t allocations = 0;
     {
       allocation_tracking::Probe probe;
-      const auto built = wire::build_frame(output.data(), output.size(), wire::MessageType::RegularPayload,
-                                           payload.data(), payload.size());
+      const auto built = wire::build_frame(output, wire::MessageType::RegularPayload, payload);
       valid = built.error == wire::BuildError::None && built.size == 14;
       const auto handshake = wire::build_handshake();
       const auto decoded = wire::decode_handshake(wire::HandshakeRole::Publisher, handshake_header(1),
-                                                   handshake.data() + wire::kHeaderSize, 1);
+                                                   wire::ConstBytes(handshake).subspan(wire::kHeaderSize));
       valid = valid && decoded.error == wire::HandshakeError::None && decoded.version == 0;
       wire::FrameParser parser;
-      const auto first = parser.feed(header.data(), header.size());
+      const auto first = parser.feed(header);
       valid = valid && first.event == wire::ParseEvent::NeedMore;
       std::size_t remaining = 65535 - wire::kHeaderSize;
       while (remaining != 0)
       {
         const auto size = (std::min)(remaining, scratch.size());
-        const auto result = parser.feed(scratch.data(), size);
+        const auto result = parser.feed(wire::ConstBytes(scratch).first(size));
         remaining -= size;
         valid = valid && result.consumed == size
                 && result.event == (remaining == 0 ? wire::ParseEvent::HeaderComplete : wire::ParseEvent::NeedMore);
       }
-      valid = valid && parser.feed(nullptr, 0).event == wire::ParseEvent::FrameComplete;
+      valid = valid && parser.feed({}).event == wire::ParseEvent::FrameComplete;
       valid = valid && parser.finish() == wire::ParseError::None;
       allocations = probe.stop();
     }

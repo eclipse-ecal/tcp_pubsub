@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "bytes.h"
 #include "header.h"
 
 namespace tcp_pubsub::wire
@@ -40,8 +41,7 @@ namespace tcp_pubsub::wire
     ParseEvent event = ParseEvent::NeedMore;
     std::size_t consumed = 0;
     Header header;
-    const std::uint8_t* payload = nullptr;
-    std::size_t payload_size = 0;
+    ConstBytes payload;
     bool discarded = false;
     ParseError error = ParseError::None;
   };
@@ -55,7 +55,7 @@ namespace tcp_pubsub::wire
     // One event per call. Advance by consumed, then feed the unconsumed suffix,
     // including an empty suffix, until NeedMore or ProtocolError is returned.
     // PayloadBytes borrows the input; discarded frames never emit PayloadBytes.
-    [[nodiscard]] ParseResult feed(const std::uint8_t* bytes, std::size_t size) noexcept;
+    [[nodiscard]] ParseResult feed(ConstBytes bytes) noexcept;
     [[nodiscard]] ParseError finish() noexcept;
 
   private:

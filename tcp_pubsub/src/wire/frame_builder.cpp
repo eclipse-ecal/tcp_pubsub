@@ -21,27 +21,27 @@ namespace tcp_pubsub::wire
     return bytes;
   }
 
-  BuildResult build_frame(std::uint8_t* output, std::size_t capacity,
-                          MessageType type, const std::uint8_t* payload,
-                          std::size_t payload_size, std::size_t max_payload_size) noexcept
+  BuildResult build_frame(MutableBytes output, MessageType type, ConstBytes payload,
+                          std::size_t max_payload_size) noexcept
   {
     static_assert(sizeof(std::size_t) <= sizeof(std::uint64_t), "Payload sizes must fit in u64");
 
-    if (output == nullptr || (payload == nullptr && payload_size != 0))
+    if (output.data() == nullptr || !payload.valid())
       return {0, BuildError::InvalidInput};
+    const auto payload_size = payload.size();
     if (payload_size > max_payload_size)
       return {0, BuildError::PayloadTooLarge};
     if (payload_size > (std::numeric_limits<std::size_t>::max)() - kHeaderSize)
       return {0, BuildError::SizeOverflow};
 
     const auto frame_size = kHeaderSize + payload_size;
-    if (capacity < frame_size)
+    if (output.size() < frame_size)
       return {0, BuildError::InsufficientBuffer};
 
     if (payload_size != 0)
-      std::memmove(output + kHeaderSize, payload, payload_size);
+      std::memmove(output.data() + kHeaderSize, payload.data(), payload_size);
     const auto header = encode_header(type, static_cast<std::uint64_t>(payload_size));
-    std::copy(header.begin(), header.end(), output);
+    std::copy(header.begin(), header.end(), output.data());
     return {frame_size, BuildError::None};
   }
 }

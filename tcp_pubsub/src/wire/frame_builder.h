@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "bytes.h"
 #include "header.h"
 
 namespace tcp_pubsub::wire
@@ -24,12 +25,10 @@ namespace tcp_pubsub::wire
     BuildError error = BuildError::None;
   };
 
-  HeaderBytes encode_header(MessageType type, std::uint64_t data_size) noexcept;
+  [[nodiscard]] HeaderBytes encode_header(MessageType type, std::uint64_t data_size) noexcept;
 
   // The caller owns the output storage; payload and output may overlap.
   // On error no output bytes are modified.
-  [[nodiscard]] BuildResult build_frame(std::uint8_t* output, std::size_t capacity,
-                                       MessageType type, const std::uint8_t* payload,
-                                       std::size_t payload_size,
+  [[nodiscard]] BuildResult build_frame(MutableBytes output, MessageType type, ConstBytes payload,
                                        std::size_t max_payload_size = kDefaultMaxPayloadSize) noexcept;
 }

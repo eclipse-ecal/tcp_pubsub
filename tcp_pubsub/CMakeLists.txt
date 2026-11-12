@@ -52,6 +52,7 @@ set(sources
     src/subscriber_session_impl.h
     src/tcp_header.h
     src/tcp_pubsub_logger_abstraction.h
+    src/wire/bytes.h
     src/wire/frame_builder.cpp
     src/wire/frame_builder.h
     src/wire/frame_parser.cpp
