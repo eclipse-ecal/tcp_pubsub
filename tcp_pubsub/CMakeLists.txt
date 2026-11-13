@@ -236,4 +236,3 @@ if (NOT TCP_PUBSUB_LIBRARY_TYPE STREQUAL "OBJECT")
     COMPONENT tcp_pubsub_dev
   )
 endif()
-

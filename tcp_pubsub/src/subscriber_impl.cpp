@@ -31,10 +31,11 @@ namespace tcp_pubsub
   ////////////////////////////////////////////////
   Subscriber_Impl::Subscriber_Impl(const std::shared_ptr<Executor>& executor)
     : executor_                    (executor)
+    , io_context_                  (executor->executor_impl_->ioService())
     , user_callback_is_synchronous_(true)
     , synchronous_user_callback_   ([](const auto&){})
     , callback_thread_stop_        (true)
-    , log_                         (executor_->executor_impl_->logFunction())
+    , log_                         (executor->executor_impl_->logFunction())
   {}
 
   // Destructor
@@ -109,7 +110,7 @@ namespace tcp_pubsub
     // ::std::make_shared here, as the constructor is private and make_shared
     // cannot access it. Thus, we crate the object manually with new.
     std::shared_ptr<SubscriberSession> subscriber_session(
-       new SubscriberSession(std::make_shared<SubscriberSession_Impl>(executor_->executor_impl_->ioService()
+       new SubscriberSession(std::make_shared<SubscriberSession_Impl>(io_context_
                                                                     , publisher_list
                                                                     , max_reconnection_attempts
                                                                     , get_free_buffer_handler
@@ -145,7 +146,11 @@ namespace tcp_pubsub
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       log_(logger::LogLevel::DebugVerbose, "Subscriber " + subscriberIdString() + ": Stopping old callback thread...");
 #endif
-      callback_thread_stop_ = true;
+      // Set the flag while holding the mutex, so the callback thread cannot miss the wakeup between checking its predicate and going to sleep
+      {
+        const std::lock_guard<std::mutex> callback_lock(last_callback_data_mutex_);
+        callback_thread_stop_ = true;
+      }
       last_callback_data_cv_.notify_all();
 
       // Join or detach the old thread. We cannot join a thread from it's own
@@ -181,7 +186,7 @@ namespace tcp_pubsub
       // Create a new callback thread with the new callback from the function parameter
       callback_thread_stop_ = false;
       callback_thread_ = std::make_unique<std::thread>(
-                    [me = shared_from_this(), callback_function]()
+                    [executor = executor_.lock(), me = shared_from_this(), callback = callback_function]() mutable
                     {
                       for (;;)
                       {
@@ -193,7 +198,7 @@ namespace tcp_pubsub
                           me->last_callback_data_cv_.wait(callback_lock, [&me]() -> bool { return bool(me->last_callback_data_.buffer_) || me->callback_thread_stop_; });
 
                           // Exit if the user has set a synchronous callback
-                          if (me->callback_thread_stop_) return;
+                          if (me->callback_thread_stop_) break;
 
                           std::swap(this_callback_data, me->last_callback_data_); // Now an empty callback data is in "last_callback_data" again
                         }
@@ -202,8 +207,14 @@ namespace tcp_pubsub
                         me->log_(logger::LogLevel::DebugVerbose, "Subscriber " + me->subscriberIdString() + ": Executing asynchronous callback");
 #endif            
                         // Execute the user callback. Note that the callback mutex is not locked any more, so while the expensive user callback is executed, our tcp sessions can already store new data.
-                        callback_function(this_callback_data);
+                        callback(this_callback_data);
                       }
+
+                      // A self-cancelled thread is detached. Release its captures
+                      // before allowing executor shutdown and final logging.
+                      callback = {};
+                      me.reset();
+                      executor.reset();
                     });
     }
 
@@ -276,7 +287,11 @@ namespace tcp_pubsub
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       log_(logger::LogLevel::DebugVerbose, "Subscriber " + subscriberIdString() + ": Stopping callback thread...");
 #endif
-      callback_thread_stop_ = true;
+      // Set the flag while holding the mutex, so the callback thread cannot miss the wakeup between checking its predicate and going to sleep
+      {
+        const std::lock_guard<std::mutex> callback_lock(last_callback_data_mutex_);
+        callback_thread_stop_ = true;
+      }
       last_callback_data_cv_.notify_all();
 
       // Join or detach the old thread. We cannot join a thread from it's own

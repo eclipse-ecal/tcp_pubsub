@@ -37,9 +37,10 @@ namespace tcp_pubsub
   // Constructor
   Publisher_Impl::Publisher_Impl(const std::shared_ptr<Executor>& executor)
     : is_running_     (false)
-    , executor_       (executor)
-    , acceptor_       (*executor_->executor_impl_->ioService())
-    , log_            (executor_->executor_impl_->logFunction())
+    , io_context_     (executor->executor_impl_->ioService())
+    , acceptor_       (*io_context_)
+    , local_port_     (0)
+    , log_            (executor->executor_impl_->logFunction())
   {}
 
   // Destructor
@@ -137,6 +138,18 @@ namespace tcp_pubsub
       }
     }
 
+    // Cache the bound endpoint. The acceptor must not be queried from other
+    // threads, as it is closed concurrently by cancel().
+    {
+      asio::error_code ec;
+      const asio::ip::tcp::endpoint bound_endpoint = acceptor_.local_endpoint(ec);
+      if (!ec)
+      {
+        local_port_            = bound_endpoint.port();
+        local_endpoint_string_ = toString(bound_endpoint);
+      }
+    }
+
     log_(logger::LogLevel::Info, "Publisher " + toString(endpoint) + ": Created publisher and waiting for clients.");
 
     is_running_ = true;
@@ -153,16 +166,15 @@ namespace tcp_pubsub
     log_(logger::LogLevel::Debug, "Publisher " + localEndpointToString() + ": Shutting down");
 #endif
 
+    std::vector<std::shared_ptr<PublisherSession>> publisher_sessions;
     {
+      const std::lock_guard<std::mutex> acceptor_lock(acceptor_mutex_);
+      is_running_ = false;
+
       asio::error_code ec;
       acceptor_.close(ec);
       acceptor_.cancel(ec);
-    }
 
-    is_running_ = false;
-
-    std::vector<std::shared_ptr<PublisherSession>> publisher_sessions;
-    {
       // Copy the list, so we can safely iterate over it without locking the mutex
       const std::lock_guard<std::mutex> publisher_sessions_lock(publisher_sessions_mutex_);
       publisher_sessions = publisher_sessions_;
@@ -175,6 +187,9 @@ namespace tcp_pubsub
 
   void Publisher_Impl::acceptClient()
   {
+    if (!is_running_)
+      return;
+
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "Publisher " + localEndpointToString() + ": Waiting for new client...");
 #endif
@@ -199,30 +214,35 @@ namespace tcp_pubsub
               };
 
     // Create a new session
-    auto session = std::make_shared<PublisherSession>(executor_->executor_impl_->ioService(), publisher_session_closed_handler, log_);
+    auto session = std::make_shared<PublisherSession>(io_context_, publisher_session_closed_handler, log_);
+    const std::lock_guard<std::mutex> acceptor_lock(acceptor_mutex_);
+    if (!is_running_)
+      return;
+
     acceptor_.async_accept(session->getSocket()
                           , [session, me = shared_from_this()](asio::error_code ec)
                           {
                             if (ec)
                             {
-                              me->log_(logger::LogLevel::Error, "Publisher " + me->localEndpointToString() + ": Error while waiting for subsriber: " + ec.message());
+                              // The acceptor is closed by cancel(), which is not an error
+                              if (ec != asio::error::operation_aborted)
+                                me->log_(logger::LogLevel::Error, "Publisher " + me->localEndpointToString() + ": Error while waiting for subsriber: " + ec.message());
                               return;
                             }
-                            else
-                            {
-                              me->log_(logger::LogLevel::Info, "Publisher " + me->localEndpointToString() + ": Subscriber " + session->remoteEndpointToString() + " has connected.");
-                            }
-
-                            session->start();
-
-                            // Add the session to the session list
+                            // Add the session to the session list before starting it, so a
+                            // session closing immediately can always be found.
                             {
                               const std::lock_guard<std::mutex> publisher_sessions_lock_(me->publisher_sessions_mutex_);
+                              if (!me->is_running_)
+                                return;
+
                               me->publisher_sessions_.push_back(session);
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
                               me->log_(logger::LogLevel::Debug, "Publisher " + me->localEndpointToString() + ": Current subscriber count: " + std::to_string(me->publisher_sessions_.size()));
 #endif
                             }
+
+                            session->start();
 
                             // Accept the next session
                             me->acceptClient();
@@ -329,19 +349,7 @@ namespace tcp_pubsub
 
   uint16_t Publisher_Impl::getPort() const
   {
-    if (is_running_)
-    {
-      asio::error_code ec;
-      auto local_endpoint = acceptor_.local_endpoint(ec);
-      if (!ec)
-        return local_endpoint.port();
-      else
-        return 0;
-    }
-    else
-    {
-      return 0;
-    }
+    return is_running_ ? local_port_ : 0;
   }
 
   size_t Publisher_Impl::getSubscriberCount() const
@@ -362,11 +370,6 @@ namespace tcp_pubsub
 
   std::string Publisher_Impl::localEndpointToString() const
   {
-    asio::error_code ec;
-    auto local_endpoint = acceptor_.local_endpoint(ec);
-    if (!ec)
-      return toString(local_endpoint);
-    else
-      return "?";
+    return local_endpoint_string_.empty() ? "?" : local_endpoint_string_;
   }
 }

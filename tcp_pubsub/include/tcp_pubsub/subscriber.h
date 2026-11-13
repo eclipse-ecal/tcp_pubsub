@@ -27,6 +27,10 @@ namespace tcp_pubsub
    * A subscriber can connect to one or multiple publishers and receive data
    * from them. As TCP actually works with 1:1 connections, you need to create a
    * SubscriberSession for each connection to a publisher.
+   *
+   * A Subscriber cannot be copied. Moving it transfers its sessions,
+   * callback and executor ownership without interrupting reception.
+   * A moved-from Subscriber may only be destroyed or reassigned.
    * 
    * Once received, you will get the data via a callback. So after creating a
    * Subsriber, you should also call Subscriber::setCallback(). By default, Callbacks are asynchronous (and is is highly recommended that you keep it this way, unless you really know what you are doing!). Subscribers use a 1-element queue:
@@ -64,12 +68,12 @@ namespace tcp_pubsub
     TCP_PUBSUB_EXPORT Subscriber(const std::shared_ptr<Executor>& executor);
 
     // Copy
-    TCP_PUBSUB_EXPORT Subscriber(const Subscriber&)            = default;
-    TCP_PUBSUB_EXPORT Subscriber& operator=(const Subscriber&) = default;
+    Subscriber(const Subscriber&)            = delete;
+    Subscriber& operator=(const Subscriber&) = delete;
 
     // Move
-    TCP_PUBSUB_EXPORT Subscriber& operator=(Subscriber&&)      = default;
-    TCP_PUBSUB_EXPORT Subscriber(Subscriber&&)                 = default;
+    TCP_PUBSUB_EXPORT Subscriber& operator=(Subscriber&&) noexcept;
+    TCP_PUBSUB_EXPORT Subscriber(Subscriber&&) noexcept = default;
 
     // Destructor
     TCP_PUBSUB_EXPORT ~Subscriber();
@@ -215,6 +219,8 @@ namespace tcp_pubsub
     TCP_PUBSUB_EXPORT void cancel();
 
   private:
+    // Declared first so it outlives the implementation during destruction.
+    std::shared_ptr<Executor> executor_;
     std::shared_ptr<Subscriber_Impl> subscriber_impl_;
   };
 }
