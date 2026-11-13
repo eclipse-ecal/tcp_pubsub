@@ -4,10 +4,14 @@
 // SPDX-License-Identifier: MIT
 
 #include <chrono>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
 #include <thread>
+#include <vector>
+
+#include <asio.hpp>
 
 #include <tcp_pubsub/executor.h>
 #include <tcp_pubsub/publisher.h>
@@ -16,6 +20,20 @@
 #include "atomic_signalable.h"
 
 #include <gtest/gtest.h>
+
+namespace
+{
+  // The TcpHeader wire format is always little-endian, regardless of host endianness
+  // (see tcp_pubsub/src/tcp_header.h). This writes an unsigned integer's bytes in that order.
+  template <typename T>
+  void writeLittleEndian(char* dest, T value)
+  {
+    for (size_t i = 0; i < sizeof(T); ++i)
+    {
+      dest[i] = static_cast<char>((value >> (8 * i)) & 0xff);
+    }
+  }
+}
 
 // Basic test that sends two messages from a publisher to a subscriber
 TEST(tcp_pubsub, basic_test)
@@ -311,6 +329,176 @@ TEST(tcp_pubsub, multiple_subscribers_test)
   EXPECT_EQ(num_messages_received1.get(), 1);
   EXPECT_EQ(received_message2, "Hello World 1");
   EXPECT_EQ(num_messages_received2.get(), 1);
+}
+
+// Regression test for a heap use-after-free write in discardDataBetweenHeaderAndPayload():
+// a handshake announcing a header_size larger than sizeof(TcpHeader) makes the publisher
+// discard the extra bytes into a buffer that used to be freed before the async read completed.
+// This test sends such a malformed handshake over a raw socket and then verifies the publisher
+// is still alive and fully functional for a legitimate subscriber.
+TEST(tcp_pubsub, oversized_handshake_header_does_not_crash)
+{
+  using asio::ip::tcp;
+
+  // Create executor + publisher
+  std::shared_ptr<tcp_pubsub::Executor> executor = std::make_shared<tcp_pubsub::Executor>(1, tcp_pubsub::logger::logger_no_verbose_debug);
+  tcp_pubsub::Publisher hello_world_publisher(executor, 1588);
+
+  // Give the publisher a moment to start listening
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  // Send a malformed handshake: header_size > sizeof(TcpHeader) (12 bytes), causing the
+  // publisher to enter the "discard extra header bytes" code path.
+  {
+    asio::io_context io_context;
+    tcp::socket socket(io_context);
+    socket.connect(tcp::endpoint(asio::ip::make_address("127.0.0.1"), 1588));
+
+    constexpr uint16_t header_size = 1012; // sizeof(TcpHeader) == 12 -> 1000 extra bytes to discard
+    constexpr uint64_t data_size   = 1;
+
+    std::vector<char> handshake_header(12, 0);
+    writeLittleEndian(handshake_header.data() + 0, header_size);
+    handshake_header[2] = 1; // type = ProtocolHandshake
+    handshake_header[3] = 0; // reserved
+    writeLittleEndian(handshake_header.data() + 4, data_size);
+
+    asio::write(socket, asio::buffer(handshake_header));
+
+    // Bytes filling the "extra header" region between the announced header_size and the
+    // actually understood TcpHeader. This is the buffer that used to be a dangling pointer
+    // (UAF write) before the fix.
+    std::vector<char> discard_bytes(static_cast<size_t>(header_size) - 12, 'A');
+    asio::write(socket, asio::buffer(discard_bytes));
+
+    // Handshake payload (protocol version)
+    const char protocol_version = 0;
+    asio::write(socket, asio::buffer(&protocol_version, 1));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    socket.close();
+  }
+
+  // If the fix regressed, the publisher process would already have crashed (UAF) by now.
+  // Verify the publisher is still fully functional for a legitimate subscriber.
+  atomic_signalable<int> num_messages_received(0);
+  tcp_pubsub::Subscriber hello_world_subscriber(executor);
+  hello_world_subscriber.addSession("127.0.0.1", 1588);
+
+  std::string received_message;
+  std::function<void(const tcp_pubsub::CallbackData& callback_data)> callback_function =
+    [&received_message, &num_messages_received](const tcp_pubsub::CallbackData& callback_data)
+    {
+      received_message = std::string(callback_data.buffer_->data(), callback_data.buffer_->size());
+      ++num_messages_received;
+    };
+  hello_world_subscriber.setCallback(callback_function);
+
+  for (int i = 0; i < 10; ++i)
+  {
+    if (hello_world_subscriber.getSessions().at(0)->isConnected()
+      && hello_world_publisher.getSubscriberCount() >= 1)
+    {
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+
+  EXPECT_TRUE(hello_world_subscriber.getSessions().at(0)->isConnected());
+
+  const std::string message = "Hello World after malformed handshake";
+  hello_world_publisher.send(message.data(), message.size());
+
+  num_messages_received.wait_for([](int value) { return value > 0; }, std::chrono::seconds(1));
+
+  EXPECT_EQ(received_message, message);
+  EXPECT_EQ(num_messages_received.get(), 1);
+}
+
+// Regression test for a heap use-after-free write in SubscriberSession_Impl::discardDataBetweenHeaderAndPayload():
+// a response header announcing a header_size larger than sizeof(TcpHeader), sent by a (potentially
+// malicious) publisher, makes the subscriber discard the extra bytes into a buffer that used to be
+// freed before the async read completed. This test acts as a raw "publisher" that sends such a
+// malformed response to a real Subscriber, and then verifies the subscriber is still alive and can
+// receive a subsequent, well-formed message.
+TEST(tcp_pubsub, oversized_response_header_does_not_crash_subscriber)
+{
+  using asio::ip::tcp;
+
+  asio::io_context server_io_context;
+  tcp::acceptor acceptor(server_io_context);
+  acceptor.open(tcp::v4());
+  acceptor.set_option(tcp::acceptor::reuse_address(true));
+  acceptor.bind(tcp::endpoint(tcp::v4(), 1588));
+  acceptor.listen();
+
+  // Create executor + subscriber, which will connect to our raw "publisher" below
+  std::shared_ptr<tcp_pubsub::Executor> executor = std::make_shared<tcp_pubsub::Executor>(1, tcp_pubsub::logger::logger_no_verbose_debug);
+  tcp_pubsub::Subscriber hello_world_subscriber(executor);
+  hello_world_subscriber.addSession("127.0.0.1", 1588);
+
+  tcp::socket socket = acceptor.accept();
+
+  // Drain the subscriber's handshake request (TcpHeader + 1-byte ProtocolHandshakeMessage)
+  std::vector<char> handshake_request(13);
+  asio::read(socket, asio::buffer(handshake_request));
+
+  // Send a malformed handshake response: header_size > sizeof(TcpHeader) (12 bytes), causing the
+  // subscriber to enter the "discard extra header bytes" code path.
+  constexpr uint16_t header_size = 1012; // sizeof(TcpHeader) == 12 -> 1000 extra bytes to discard
+  constexpr uint64_t data_size   = 1;    // sizeof(ProtocolHandshakeMessage)
+
+  std::vector<char> response_header(12, 0);
+  writeLittleEndian(response_header.data() + 0, header_size);
+  response_header[2] = 1; // type = ProtocolHandshake
+  response_header[3] = 0; // reserved
+  writeLittleEndian(response_header.data() + 4, data_size);
+
+  asio::write(socket, asio::buffer(response_header));
+
+  // Bytes filling the "extra header" region between the announced header_size and the actually
+  // understood TcpHeader. This is the buffer that used to be a dangling pointer (UAF write) before
+  // the fix.
+  std::vector<char> discard_bytes(static_cast<size_t>(header_size) - 12, 'A');
+  asio::write(socket, asio::buffer(discard_bytes));
+
+  // Handshake payload (protocol version)
+  const char protocol_version = 0;
+  asio::write(socket, asio::buffer(&protocol_version, 1));
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+  // If the fix regressed, the subscriber process would already have crashed (UAF) by now.
+  // Verify the subscriber is still fully functional by sending it a legitimate message.
+  atomic_signalable<int> num_messages_received(0);
+  std::string received_message;
+  std::function<void(const tcp_pubsub::CallbackData& callback_data)> callback_function =
+    [&received_message, &num_messages_received](const tcp_pubsub::CallbackData& callback_data)
+    {
+      received_message = std::string(callback_data.buffer_->data(), callback_data.buffer_->size());
+      ++num_messages_received;
+    };
+  hello_world_subscriber.setCallback(callback_function);
+
+  const std::string message = "Hello World after malformed response";
+  const uint16_t    payload_header_size = 12;
+  const uint64_t    payload_data_size   = message.size();
+
+  std::vector<char> payload_header(12, 0);
+  writeLittleEndian(payload_header.data() + 0, payload_header_size);
+  payload_header[2] = 0; // type = RegularPayload
+  payload_header[3] = 0; // reserved
+  writeLittleEndian(payload_header.data() + 4, payload_data_size);
+
+  asio::write(socket, asio::buffer(payload_header));
+  asio::write(socket, asio::buffer(message));
+
+  num_messages_received.wait_for([](int value) { return value > 0; }, std::chrono::seconds(1));
+
+  EXPECT_EQ(received_message, message);
+  EXPECT_EQ(num_messages_received.get(), 1);
+
+  socket.close();
 }
 
 // Test connecting to a list of possible publishers. The subscriber will connect to the first available publisher.
