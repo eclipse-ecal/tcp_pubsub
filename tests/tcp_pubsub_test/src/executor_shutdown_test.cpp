@@ -183,6 +183,80 @@ TEST(ExecutorShutdown, LastReferenceIsReleasedOnWorkerThread)
   }
 }
 
+TEST(ExecutorShutdown, AsyncCallbackRetainsExecutorUntilItsCapturesAreReleased)
+{
+  const LogCounter log_counter = std::make_shared<std::atomic<int>>(0);
+  auto publisher_executor = std::make_shared<tcp_pubsub::Executor>(
+      1, [](tcp_pubsub::logger::LogLevel, const std::string&) {});
+  tcp_pubsub::Publisher publisher(publisher_executor, "127.0.0.1", 0);
+
+  struct Owners
+  {
+    std::shared_ptr<tcp_pubsub::Executor> executor;
+    std::unique_ptr<tcp_pubsub::Subscriber> subscriber;
+  };
+  const auto owners = std::make_shared<Owners>();
+  owners->executor = std::make_shared<tcp_pubsub::Executor>(1, makeCountingLogger(log_counter));
+  const std::weak_ptr<tcp_pubsub::Executor> weak_executor = owners->executor;
+  owners->subscriber = std::make_unique<tcp_pubsub::Subscriber>(owners->executor);
+  const auto owners_released = std::make_shared<std::promise<void>>();
+  auto owners_released_future = owners_released->get_future();
+  std::promise<void> release;
+  const auto release_future = release.get_future().share();
+  auto callback_state = std::make_shared<int>(0);
+  const std::weak_ptr<int> weak_callback_state = callback_state;
+  owners->subscriber->setCallback(
+      [owners, owners_released, release_future, callback_state](const tcp_pubsub::CallbackData&)
+      {
+        owners->subscriber.reset();
+        owners->executor.reset();
+        owners_released->set_value();
+        release_future.wait();
+      });
+  callback_state.reset();
+  owners->subscriber->addSession("127.0.0.1", publisher.getPort(), 0);
+
+  const bool connected = WaitUntil([&]() { return publisher.getSubscriberCount() == 1; });
+  if (connected) publisher.send("x", 1);
+  const auto status = owners_released_future.wait_for(5s);
+  if (status == std::future_status::ready)
+  {
+    EXPECT_FALSE(weak_executor.expired());
+    EXPECT_FALSE(weak_callback_state.expired());
+  }
+  release.set_value();
+  ASSERT_TRUE(connected);
+  ASSERT_EQ(status, std::future_status::ready);
+  EXPECT_TRUE(WaitUntil([&]() { return weak_executor.expired(); }));
+  EXPECT_TRUE(WaitUntil([&]() { return log_counter.use_count() == 1; }));
+  EXPECT_TRUE(weak_callback_state.expired());
+}
+
+TEST(ExecutorShutdown, ConcurrentSessionCancelAndSubscriberDestructionDrainCleanup)
+{
+  for (int iteration = 0; iteration < 200; ++iteration)
+  {
+    SCOPED_TRACE(iteration);
+    const LogCounter log_counter = std::make_shared<std::atomic<int>>(0);
+    auto executor = std::make_shared<tcp_pubsub::Executor>(1, makeCountingLogger(log_counter));
+    auto subscriber = std::make_unique<tcp_pubsub::Subscriber>(executor);
+    auto session = subscriber->addSession("127.0.0.1", 1, 0);
+    std::promise<void> start;
+    auto start_future = start.get_future();
+    std::thread cancellation([session, start_future = std::move(start_future)]() mutable
+    {
+      start_future.wait();
+      session->cancel();
+    });
+    start.set_value();
+    subscriber.reset();
+    executor.reset();
+    cancellation.join();
+    session.reset();
+    ASSERT_EQ(log_counter.use_count(), 1);
+  }
+}
+
 template<typename Handle>
 class ExecutorHandleOwnership : public ::testing::Test
 {

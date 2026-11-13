@@ -50,6 +50,10 @@ namespace tcp_pubsub
    * Executor itself (e.g. from a callback), the Executor cannot wait for its
    * threads. They finish the pending work on their own in that case.
    *
+   * An asynchronous subscriber callback runs on a separate thread, which
+   * retains the Executor until the callback returns and its captures are
+   * released. Destroying its own Subscriber does not wait for that callback.
+   *
    * An Executor can neither be copied nor moved. Create it with
    * std::make_shared and pass the shared_ptr around.
    *

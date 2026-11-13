@@ -109,6 +109,12 @@ least one worker thread.
 If the last executor owner is released on one of its own workers, shutdown cannot
 wait for that worker. The workers finish pending work independently in that case.
 
+An asynchronous subscriber callback runs on a separate thread. If it destroys
+its own subscriber, that thread keeps the executor alive until the callback
+returns and its callback state is released; executor shutdown happens afterwards.
+Returning from subscriber destruction inside that callback is not a shutdown
+barrier.
+
 A retained `SubscriberSession` handle is canceled when its subscriber is destroyed,
 but remains valid. It keeps its context and logger alive without keeping worker
 threads running. Releasing such a handle may still invoke the logger, so anything

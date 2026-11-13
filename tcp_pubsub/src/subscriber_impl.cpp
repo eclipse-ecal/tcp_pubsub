@@ -30,7 +30,8 @@ namespace tcp_pubsub
   // Constructor & Destructor
   ////////////////////////////////////////////////
   Subscriber_Impl::Subscriber_Impl(const std::shared_ptr<Executor>& executor)
-    : io_context_                  (executor->executor_impl_->ioService())
+    : executor_                    (executor)
+    , io_context_                  (executor->executor_impl_->ioService())
     , user_callback_is_synchronous_(true)
     , synchronous_user_callback_   ([](const auto&){})
     , callback_thread_stop_        (true)
@@ -185,7 +186,7 @@ namespace tcp_pubsub
       // Create a new callback thread with the new callback from the function parameter
       callback_thread_stop_ = false;
       callback_thread_ = std::make_unique<std::thread>(
-                    [me = shared_from_this(), callback_function]()
+                    [executor = executor_.lock(), me = shared_from_this(), callback = callback_function]() mutable
                     {
                       for (;;)
                       {
@@ -197,7 +198,7 @@ namespace tcp_pubsub
                           me->last_callback_data_cv_.wait(callback_lock, [&me]() -> bool { return bool(me->last_callback_data_.buffer_) || me->callback_thread_stop_; });
 
                           // Exit if the user has set a synchronous callback
-                          if (me->callback_thread_stop_) return;
+                          if (me->callback_thread_stop_) break;
 
                           std::swap(this_callback_data, me->last_callback_data_); // Now an empty callback data is in "last_callback_data" again
                         }
@@ -206,8 +207,14 @@ namespace tcp_pubsub
                         me->log_(logger::LogLevel::DebugVerbose, "Subscriber " + me->subscriberIdString() + ": Executing asynchronous callback");
 #endif            
                         // Execute the user callback. Note that the callback mutex is not locked any more, so while the expensive user callback is executed, our tcp sessions can already store new data.
-                        callback_function(this_callback_data);
+                        callback(this_callback_data);
                       }
+
+                      // A self-cancelled thread is detached. Release its captures
+                      // before allowing executor shutdown and final logging.
+                      callback = {};
+                      me.reset();
+                      executor.reset();
                     });
     }
 

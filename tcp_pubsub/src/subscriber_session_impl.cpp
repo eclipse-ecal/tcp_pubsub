@@ -521,15 +521,13 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::cancel()
   {
-    {
-      const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
-      if (canceled_.exchange(true)) return;
+    const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
+    if (canceled_.exchange(true)) return;
 
-      connected_publisher_endpoint_ = std::make_pair("", 0);
-      local_endpoint_.clear();
-    }
+    connected_publisher_endpoint_ = std::make_pair("", 0);
+    local_endpoint_.clear();
 
-    // Socket cancellation must not overlap a composed read/connect operation.
+    // Queue cleanup before another cancel() can return and release the executor.
     asio::post(data_strand_, [me = shared_from_this()]()
     {
       me->cancelOnStrand();

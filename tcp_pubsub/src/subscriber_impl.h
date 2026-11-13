@@ -64,6 +64,8 @@ class Subscriber_Impl : public std::enable_shared_from_this<Subscriber_Impl>
   // Member variables
   ////////////////////////////////////////////////
   private:
+    const std::weak_ptr<Executor>                  executor_;
+
     // Asio
     const std::shared_ptr<asio::io_context>         io_context_;               /// The io_context of the executor. Used for creating the sessions.
 
