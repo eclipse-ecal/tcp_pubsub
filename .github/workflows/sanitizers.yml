@@ -1,0 +1,46 @@
+name: Sanitizers
+
+on:
+  push:
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  thread-sanitizer:
+    runs-on: ubuntu-24.04
+
+    env:
+      # Fail a test as soon as a data race is reported
+      TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: 'true'
+
+    # TSan cannot map its shadow memory with the high ASLR entropy of recent
+    # kernels ("FATAL: ThreadSanitizer: unexpected memory mapping").
+    - name: Reduce ASLR entropy for ThreadSanitizer
+      run: sudo sysctl vm.mmap_rnd_bits=28
+
+    - name: Configure CMake
+      run: |
+           cmake -B ${{github.workspace}}/_build \
+                 -DTCP_PUBSUB_BUILD_SAMPLES=OFF \
+                 -DTCP_PUBSUB_BUILD_TESTS=ON \
+                 -DTCP_PUBSUB_USE_BUILTIN_ASIO=ON \
+                 -DTCP_PUBSUB_USE_BUILTIN_RECYCLE=ON \
+                 -DTCP_PUBSUB_USE_BUILTIN_GTEST=ON \
+                 -DCMAKE_BUILD_TYPE=Debug \
+                 "-DCMAKE_CXX_FLAGS=-fsanitize=thread -fno-omit-frame-pointer -DASIO_NO_DEPRECATED" \
+                 -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=thread \
+                 -DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=thread
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/_build --parallel
+
+    - name: Run Tests
+      # Repeat the suite, as races depend on timing
+      run: ctest --output-on-failure --repeat until-fail:5
+      working-directory: ${{ github.workspace }}/_build

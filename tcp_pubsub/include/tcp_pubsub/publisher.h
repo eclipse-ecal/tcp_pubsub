@@ -26,6 +26,10 @@ namespace tcp_pubsub
    * choose a port to listen on or let that decision to the operating system.
    * See the constructor for more details.
    *
+   * A Publisher cannot be copied. Moving it transfers its connections and
+   * executor ownership without interrupting publication.
+   * A moved-from Publisher may only be destroyed or reassigned.
+   *
    * A Publisher uses a 1-element send-queue:
    *
    * - 1 message is being sent to a subscriber. As each Subscriber connects
@@ -106,12 +110,12 @@ namespace tcp_pubsub
     TCP_PUBSUB_EXPORT Publisher(const std::shared_ptr<Executor>& executor, uint16_t port = 0);
 
     // Copy
-    TCP_PUBSUB_EXPORT Publisher(const Publisher&)            = default;
-    TCP_PUBSUB_EXPORT Publisher& operator=(const Publisher&) = default;
+    Publisher(const Publisher&)            = delete;
+    Publisher& operator=(const Publisher&) = delete;
 
     // Move
-    TCP_PUBSUB_EXPORT Publisher& operator=(Publisher&&)      = default;
-    TCP_PUBSUB_EXPORT Publisher(Publisher&&)                 = default;
+    TCP_PUBSUB_EXPORT Publisher& operator=(Publisher&&) noexcept;
+    TCP_PUBSUB_EXPORT Publisher(Publisher&&) noexcept = default;
 
     // Destructor
     TCP_PUBSUB_EXPORT ~Publisher();
@@ -243,6 +247,8 @@ namespace tcp_pubsub
     TCP_PUBSUB_EXPORT void cancel();
 
   private:
+    // Declared first so it outlives the implementation during destruction.
+    std::shared_ptr<Executor> executor_;
     std::shared_ptr<Publisher_Impl> publisher_impl_;
   };
 }

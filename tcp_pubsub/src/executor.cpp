@@ -19,10 +19,6 @@ namespace tcp_pubsub
 
   Executor::~Executor()
   {
-    executor_impl_->stop();
+    executor_impl_->shutdown();
   }
-
-  // Move
-  Executor& Executor::operator=(Executor&&) noexcept      = default;
-  Executor::Executor(Executor&&) noexcept                 = default;
 }

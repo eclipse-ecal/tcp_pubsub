@@ -18,12 +18,28 @@
 namespace tcp_pubsub
 {
   Subscriber::Subscriber(const std::shared_ptr<Executor>& executor)
-    : subscriber_impl_(std::make_shared<Subscriber_Impl>(executor))
+    : executor_(executor)
+    , subscriber_impl_(std::make_shared<Subscriber_Impl>(executor))
   {}
 
   Subscriber::~Subscriber()
   {
-    subscriber_impl_->cancel();
+    // The subscriber may have been moved from
+    if (subscriber_impl_)
+    {
+      subscriber_impl_->cancel();
+    }
+  }
+
+  Subscriber& Subscriber::operator=(Subscriber&& other) noexcept
+  {
+    if (this != &other)
+    {
+      Subscriber previous(std::move(other));
+      executor_.swap(previous.executor_);
+      subscriber_impl_.swap(previous.subscriber_impl_);
+    }
+    return *this;
   }
 
   std::shared_ptr<SubscriberSession> Subscriber::addSession(const std::string& address, uint16_t port, int max_reconnection_attempts)

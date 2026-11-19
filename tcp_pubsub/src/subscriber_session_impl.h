@@ -57,6 +57,8 @@ class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSes
     void sendProtokolHandshakeRequest();
 
     void connectionFailedHandler();
+    void notifySessionClosed();
+    void cancelOnStrand();
 
   /////////////////////////////////////////////
   // Data receiving
@@ -87,6 +89,9 @@ class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSes
   /// Member variables
   //////////////////////////////////////////////
   private:
+    // Must outlive the Asio members, even after the session's callbacks are destroyed.
+    const std::shared_ptr<asio::io_context> io_context_;
+
     // Endpoint and resolver given by / constructed by the constructor
     std::vector<std::pair<std::string, uint16_t>> publisher_list_;              ///< The list of endpoints that this session will connect to. The first reachable will be used
     asio::ip::tcp::resolver resolver_;
@@ -94,12 +99,14 @@ class SubscriberSession_Impl : public std::enable_shared_from_this<SubscriberSes
 
     mutable std::mutex               connected_publisher_endpoint_mutex_;       ///< Mutex for the connected_publisher_endpoint_
     std::pair<std::string, uint16_t> connected_publisher_endpoint_;             ///< The endpoint of the publisher we are connected to
+    std::string                      local_endpoint_;                           ///< Local endpoint of the connection. Cached for thread-safe status queries (protected by connected_publisher_endpoint_mutex_)
 
     // Amount of retries left
     int                max_reconnection_attempts_;
     int                retries_left_;
     asio::steady_timer retry_timer_;
     std::atomic<bool>  canceled_;
+    bool               session_closed_;                                         ///< Protected by data_strand_
 
     // TCP Socket & Queue (protected by the strand!)
     asio::ip::tcp::socket         data_socket_;

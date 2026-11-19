@@ -91,6 +91,37 @@ int main()
 }
 ```
 
+## Lifetime and shutdown
+
+Executors can neither be copied nor moved; share them through `std::shared_ptr`.
+Publishers and subscribers are move-only and keep their executor alive directly.
+Moving a publisher transfers its connections; moving a subscriber transfers its
+sessions and callback. Moving does not cancel the transferred operations.
+Move assignment cancels the destination's old operations before releasing their
+executor. To create an independent publisher or subscriber, construct a new one;
+its connections and callback are configured separately.
+
+Executor destruction on a non-worker thread waits for canceled operations and
+running callbacks to finish, then joins all workers. There is no forced-stop
+timeout, so callbacks must return for shutdown to complete. Executors require at
+least one worker thread.
+
+If the last executor owner is released on one of its own workers, shutdown cannot
+wait for that worker. The workers finish pending work independently in that case.
+
+An asynchronous subscriber callback runs on a separate thread. If it destroys
+its own subscriber, that thread keeps the executor alive until the callback
+returns and its callback state is released; executor shutdown happens afterwards.
+Returning from subscriber destruction inside that callback is not a shutdown
+barrier.
+
+A retained `SubscriberSession` handle is canceled when its subscriber is destroyed,
+but remains valid. It keeps its context and logger alive without keeping worker
+threads running. Releasing such a handle may still invoke the logger, so anything
+captured by the logger must outlive all session handles. Without retained handles
+or callback-owned executor references, tearing down the public handles completes
+shutdown before returning and no further logging occurs.
+
 ## CMake Options
 
 You can set the following CMake Options to control how tcp_pubsub is built:
@@ -134,6 +165,18 @@ There are several examples provided that aim to show you the functionality.
 	- `hello_world_publisher /.exe` + `hello_world_subscriber /.exe`
 	  *or*
 	- `performance_publisher /.exe` + `performance_subscriber /.exe`
+
+## Tests
+
+Build with `TCP_PUBSUB_BUILD_TESTS=ON` and run CTest from the build directory.
+The full test suite is enabled on all supported platforms, including Linux.
+Each test has a 60-second timeout.
+
+CI additionally runs the test suite with ThreadSanitizer on Ubuntu. To do the
+same locally, configure with `-fsanitize=thread` in `CMAKE_CXX_FLAGS`,
+`CMAKE_EXE_LINKER_FLAGS` and `CMAKE_SHARED_LINKER_FLAGS`. If TSan aborts with
+`unexpected memory mapping`, lower the ASLR entropy
+(`sudo sysctl vm.mmap_rnd_bits=28`) or run CTest via `setarch -R`.
 
 ## The Protocol (Version 0)
 

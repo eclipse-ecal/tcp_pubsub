@@ -38,14 +38,16 @@ namespace tcp_pubsub
                                                 , const std::function<std::shared_ptr<std::vector<char>>()>&          get_buffer_handler
                                                 , const std::function<void(const std::shared_ptr<SubscriberSession_Impl>&)>& session_closed_handler
                                                 , const tcp_pubsub::logger::logger_t&                                      log_function)
-    : publisher_list_         (publisher_list)
-    , resolver_               (*io_context)
+    : io_context_             (io_context)
+    , publisher_list_         (publisher_list)
+    , resolver_               (*io_context_)
     , max_reconnection_attempts_(max_reconnection_attempts)
     , retries_left_           (max_reconnection_attempts)
-    , retry_timer_            (*io_context, std::chrono::seconds(1))
+    , retry_timer_            (*io_context_, std::chrono::seconds(1))
     , canceled_               (false)
-    , data_socket_            (*io_context)
-    , data_strand_            (*io_context)
+    , session_closed_         (false)
+    , data_socket_            (*io_context_)
+    , data_strand_            (*io_context_)
     , get_buffer_handler_     (get_buffer_handler)
     , session_closed_handler_ (session_closed_handler)
     , log_                    (log_function)
@@ -67,8 +69,6 @@ namespace tcp_pubsub
     log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Deleting from thread " + thread_id + "...");
 #endif
 
-    cancel();
-
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "SubscriberSession " + endpointToString() + ": Deleted.");
 #endif
@@ -80,10 +80,10 @@ namespace tcp_pubsub
   
   void SubscriberSession_Impl::start()
   {
-    if (canceled_) return;
-
-    // Start resolving the endpoint given in the constructor
-    resolveEndpoint(0);
+    asio::post(data_strand_, [me = shared_from_this()]()
+    {
+      me->resolveEndpoint(0);
+    });
   }
 
   void SubscriberSession_Impl::resolveEndpoint(size_t publisher_list_index)
@@ -96,8 +96,9 @@ namespace tcp_pubsub
 
     resolver_.async_resolve(publisher_list_[publisher_list_index].first
                             , std::to_string(publisher_list_[publisher_list_index].second)
-                            , [me = shared_from_this(), publisher_list_index](asio::error_code ec, const asio::ip::tcp::resolver::results_type& resolved_endpoints)
+                            , asio::bind_executor(data_strand_, [me = shared_from_this(), publisher_list_index](asio::error_code ec, const asio::ip::tcp::resolver::results_type& resolved_endpoints)
                               {
+                                if (me->canceled_) return;
                                 if (ec)
                                 {
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
@@ -132,7 +133,7 @@ namespace tcp_pubsub
                                 {
                                   me->connectToEndpoint(resolved_endpoints, publisher_list_index);
                                 }
-                              });
+                              }));
   }
 
   void SubscriberSession_Impl::connectToEndpoint(const asio::ip::tcp::resolver::results_type& resolved_endpoints, size_t publisher_list_index)
@@ -153,8 +154,9 @@ namespace tcp_pubsub
 
     asio::async_connect(data_socket_
                         , *endpoint_sequence
-                        , [me = shared_from_this(), publisher_list_index](asio::error_code ec, const asio::ip::tcp::endpoint& /*endpoint*/)
+                        , asio::bind_executor(data_strand_, [me = shared_from_this(), publisher_list_index](asio::error_code ec, const asio::ip::tcp::endpoint& /*endpoint*/)
                           {
+                            if (me->canceled_) return;
                             if (ec)
                             {
                               me->log_(logger::LogLevel::Warning, "SubscriberSession " + me->localEndpointToString() + ": Failed connecting to publisher " + me->publisher_list_[publisher_list_index].first + ":" + std::to_string(me->publisher_list_[publisher_list_index].second) + ": " + ec.message());
@@ -182,24 +184,27 @@ namespace tcp_pubsub
 
                               // Store the connected publisher endpoint
                               {
+                                asio::error_code endpoint_ec;
+                                const auto local_endpoint = me->data_socket_.local_endpoint(endpoint_ec);
                                 const std::lock_guard<std::mutex> lock(me->connected_publisher_endpoint_mutex_);
-                                me->connected_publisher_endpoint_ = me->publisher_list_[publisher_list_index];
+                                // Checked under the lock, so a concurrent cancel() cannot be overwritten
+                                if (!me->canceled_)
+                                {
+                                  me->connected_publisher_endpoint_ = me->publisher_list_[publisher_list_index];
+                                  me->local_endpoint_ = endpoint_ec ? "?" : local_endpoint.address().to_string() + ":" + std::to_string(local_endpoint.port());
+                                }
                               }
 
                               // Start reading a package by reading the header length. Everything will
                               // unfold from there automatically.
                               me->sendProtokolHandshakeRequest();
                             }
-                          });
+                          }));
   }
 
   void SubscriberSession_Impl::sendProtokolHandshakeRequest()
   {
-    if (canceled_)
-    {
-      connectionFailedHandler();
-      return;
-    }
+    if (canceled_) return;
 
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug,  "SubscriberSession " + endpointToString() + ": Sending ProtocolHandshakeRequest.");
@@ -222,6 +227,7 @@ namespace tcp_pubsub
                 , asio::bind_executor(data_strand_,
                   [me = shared_from_this(), buffer](asio::error_code ec, std::size_t /*bytes_to_transfer*/)
                   {
+                    if (me->canceled_) return;
                     if (ec)
                     {
                       me->log_(logger::LogLevel::Warning, "SubscriberSession " + me->endpointToString() + ": Failed sending ProtocolHandshakeRequest: " + ec.message());
@@ -235,10 +241,13 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::connectionFailedHandler()
   {
+    if (canceled_ || session_closed_) return;
+
     // Reset the connected publisher endpoint
     {
       const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
       connected_publisher_endpoint_ = std::make_pair("", 0);
+      local_endpoint_.clear();
     }
 
     {
@@ -262,21 +271,37 @@ namespace tcp_pubsub
 #endif
 
       // Retry connection after a short time
-      retry_timer_.async_wait([me = shared_from_this()](asio::error_code ec)
+      retry_timer_.expires_after(std::chrono::seconds(1));
+      retry_timer_.async_wait(asio::bind_executor(data_strand_, [me = shared_from_this()](asio::error_code ec)
                               {
+                                if (me->canceled_) return;
                                 if (ec)
                                 {
                                   me->log_(logger::LogLevel::Warning, "SubscriberSession " + me->endpointToString() + ": Waiting to reconnect failed: " + ec.message());
-                                  me->session_closed_handler_(me);
+                                  me->notifySessionClosed();
                                   return;
                                 }
                                 me->resolveEndpoint(0);
-                              });
+                              }));
     }
     else
     {
-      session_closed_handler_(shared_from_this());
+      notifySessionClosed();
     }
+  }
+
+  void SubscriberSession_Impl::notifySessionClosed()
+  {
+    {
+      const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
+      canceled_.store(true);
+      connected_publisher_endpoint_ = std::make_pair("", 0);
+      local_endpoint_.clear();
+    }
+
+    if (session_closed_) return;
+    session_closed_ = true;
+    session_closed_handler_(shared_from_this());
   }
   
   /////////////////////////////////////////////
@@ -285,11 +310,7 @@ namespace tcp_pubsub
   
   void SubscriberSession_Impl::readHeaderLength()
   {
-    if (canceled_)
-    {
-      connectionFailedHandler();
-      return;
-    }
+    if (canceled_) return;
 
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose,  "SubscriberSession " + endpointToString() + ": Waiting for data...");
@@ -302,10 +323,11 @@ namespace tcp_pubsub
                      , asio::transfer_at_least(sizeof(header->header_size))
                      , asio::bind_executor(data_strand_, [me = shared_from_this(), header](asio::error_code ec, std::size_t /*length*/)
                                         {
+                                          if (me->canceled_) return;
                                           if (ec)
                                           {
                                             me->log_(logger::LogLevel::Error,  "SubscriberSession " + me->endpointToString() + ": Error reading header length: " + ec.message());
-                                            me->connectionFailedHandler();;
+                                            me->connectionFailedHandler();
                                             return;
                                           }
                                           me->readHeaderContent(header);
@@ -314,13 +336,9 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::readHeaderContent(const std::shared_ptr<TcpHeader>& header)
   {
-    if (canceled_)
-    {
-      connectionFailedHandler();
-      return;
-    }
+    if (canceled_) return;
 
-    if (header->header_size < sizeof(header->header_size))
+    if (header->header_size <  sizeof(header->header_size))
     {
       log_(logger::LogLevel::Error,  "SubscriberSession " + endpointToString() + ": Received header length of " + std::to_string(header->header_size) + ", which is less than the minimal header size.");
       connectionFailedHandler();
@@ -338,10 +356,11 @@ namespace tcp_pubsub
                     , asio::transfer_at_least(bytes_to_read_from_socket)
                     , asio::bind_executor(data_strand_, [me = shared_from_this(), header, bytes_to_discard_from_socket](asio::error_code ec, std::size_t /*length*/)
                                         {
+                                          if (me->canceled_) return;
                                           if (ec)
                                           {
                                             me->log_(logger::LogLevel::Error,  "SubscriberSession " + me->endpointToString() + ": Error reading header content: " + ec.message());
-                                            me->connectionFailedHandler();;
+                                            me->connectionFailedHandler();
                                             return;
                                           }
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
@@ -363,11 +382,7 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::discardDataBetweenHeaderAndPayload(const std::shared_ptr<TcpHeader>& header, uint16_t bytes_to_discard)
   {
-    if (canceled_)
-    {
-      connectionFailedHandler();
-      return;
-    }
+    if (canceled_) return;
 
     std::vector<char> data_to_discard;
     data_to_discard.resize(bytes_to_discard);
@@ -381,10 +396,11 @@ namespace tcp_pubsub
                     , asio::transfer_at_least(bytes_to_discard)
                     , asio::bind_executor(data_strand_, [me = shared_from_this(), header](asio::error_code ec, std::size_t /*length*/)
                                         {
+                                          if (me->canceled_) return;
                                           if (ec)
                                           {
                                             me->log_(logger::LogLevel::Error,  "SubscriberSession " + me->endpointToString() + ": Error discarding bytes after header: " + ec.message());
-                                            me->connectionFailedHandler();;
+                                            me->connectionFailedHandler();
                                             return;
                                           }
                                           me->readPayload(header);
@@ -393,11 +409,7 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::readPayload(const std::shared_ptr<TcpHeader>& header)
   {
-    if (canceled_)
-    {
-      connectionFailedHandler();
-      return;
-    }
+    if (canceled_) return;
 
     if (header->data_size == 0)
     {
@@ -425,10 +437,11 @@ namespace tcp_pubsub
                 , asio::transfer_at_least(le64toh(header->data_size))
                 , asio::bind_executor(data_strand_, [me = shared_from_this(), header, data_buffer](asio::error_code ec, std::size_t /*length*/)
                                     {
+                                      if (me->canceled_) return;
                                       if (ec)
                                       {
                                         me->log_(logger::LogLevel::Error,  "SubscriberSession " + me->endpointToString() + ": Error reading payload: " + ec.message());
-                                        me->connectionFailedHandler();;
+                                        me->connectionFailedHandler();
                                         return;
                                       }
 
@@ -458,11 +471,7 @@ namespace tcp_pubsub
                                         // Call the callback first, ...
                                         asio::post(me->data_strand_, [me, data_buffer, header]()
                                                               {
-                                                                if (me->canceled_)
-                                                                {
-                                                                  me->connectionFailedHandler();
-                                                                  return;
-                                                                }
+                                                                if (me->canceled_) return;
                                                                 me->synchronous_callback_(data_buffer, header);
                                                               });
 
@@ -512,33 +521,38 @@ namespace tcp_pubsub
 
   void SubscriberSession_Impl::cancel()
   {
-    const bool already_canceled = canceled_.exchange(true);
+    const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
+    if (canceled_.exchange(true)) return;
 
-    if (already_canceled) return;
+    connected_publisher_endpoint_ = std::make_pair("", 0);
+    local_endpoint_.clear();
 
+    // Queue cleanup before another cancel() can return and release the executor.
+    asio::post(data_strand_, [me = shared_from_this()]()
+    {
+      me->cancelOnStrand();
+    });
+  }
+
+  void SubscriberSession_Impl::cancelOnStrand()
+  {
 #if (TCP_PUBSUB_LOG_DEBUG_ENABLED)
     log_(logger::LogLevel::Debug, "SubscriberSession " + endpointToString() + ": Cancelling...");
 #endif
     
     {
       asio::error_code ec;
-      data_socket_.close(ec);
+      data_socket_.shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+    }
+
+    {
+      asio::error_code ec;
+      data_socket_.close(ec); // Even if ec indicates an error, the socket is closed now (according to the documentation). Closing also cancels pending operations.
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
       if (ec)
         log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Failed closing socket: " + ec.message());
       else
         log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Successfully closed socket.");
-#endif
-    }
-
-    {
-      asio::error_code ec;
-      data_socket_.cancel(ec); // Even if ec indicates an error, the socket is closed now (according to the documentation)
-#if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
-      if (ec)
-        log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Failed cancelling socket: " + ec.message());
-      else
-        log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Successfully canceled socket.");
 #endif
     }
 
@@ -559,17 +573,13 @@ namespace tcp_pubsub
 #if (TCP_PUBSUB_LOG_DEBUG_VERBOSE_ENABLED)
     log_(logger::LogLevel::DebugVerbose, "SubscriberSession " + endpointToString() + ": Successfully canceled resovler.");
 #endif
+    notifySessionClosed();
   }
 
   bool SubscriberSession_Impl::isConnected() const
   {
-    asio::error_code ec;
-    data_socket_.remote_endpoint(ec);
-
-    // If we can get the remote endpoint, we consider the socket as connected.
-    // Otherwise it is not connected.
-
-    return !static_cast<bool>(ec);
+    const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
+    return !canceled_ && !connected_publisher_endpoint_.first.empty();
   }
 
   std::string SubscriberSession_Impl::remoteEndpointToString() const
@@ -582,12 +592,8 @@ namespace tcp_pubsub
 
   std::string SubscriberSession_Impl::localEndpointToString() const
   {
-    asio::error_code ec;
-    auto local_endpoint = data_socket_.local_endpoint(ec);
-    if (ec)
-      return "?";
-    else
-      return local_endpoint.address().to_string() + ":" + std::to_string(local_endpoint.port());
+    const std::lock_guard<std::mutex> lock(connected_publisher_endpoint_mutex_);
+    return local_endpoint_.empty() ? "?" : local_endpoint_;
   }
 
   std::string SubscriberSession_Impl::endpointToString() const

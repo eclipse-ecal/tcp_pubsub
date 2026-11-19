@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include <asio.hpp>
 #include <recycle/shared_pool.hpp>
 
 #include <tcp_pubsub/callback_data.h>
@@ -63,8 +64,10 @@ class Subscriber_Impl : public std::enable_shared_from_this<Subscriber_Impl>
   // Member variables
   ////////////////////////////////////////////////
   private:
+    const std::weak_ptr<Executor>                  executor_;
+
     // Asio
-    const std::shared_ptr<Executor>                 executor_;                 /// Global Executor
+    const std::shared_ptr<asio::io_context>         io_context_;               /// The io_context of the executor. Used for creating the sessions.
 
     // List of all Sessions
     mutable std::mutex                              session_list_mutex_;
